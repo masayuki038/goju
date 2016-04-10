@@ -12,23 +12,11 @@ import java.nio.charset.Charset
   */
 object Constants {
   type Key = Array[Byte]
-  type Value = Array[Byte]
-  type Expiry = Int
   type FilePos = (Int, Int)
 
   val TOMBSTONE = "deleted".getBytes(Charset.forName("UTF-8"))
-
 }
 
-
-class ExpValue[T]
-
-object ExpValue {
-
-  implicit object ExpirableValue extends ExpValue[(Constants.Expiry, Constants.Value)]
-
-  implicit object Value extends ExpValue[Constants.Value]
-
-  implicit object FilePos extends ExpValue[Constants.FilePos]
-
-}
+sealed trait Value
+final case class ExpValue(bytes: Array[Byte], expiry: Int = -1) extends Value
+final case class FilePos(pos: Long, len: Int) extends Value
