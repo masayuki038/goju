@@ -1,3 +1,3 @@
-Goju(WIP)
+goju(WIP)
 =========
-Goju is [hanoidb](https://github.com/krestenkrab/hanoidb) clone written in Scala.
+goju is [hanoidb](https://github.com/krestenkrab/hanoidb) clone written in Scala.
