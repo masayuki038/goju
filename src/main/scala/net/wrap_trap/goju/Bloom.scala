@@ -24,7 +24,7 @@ class Bloom(var e: Double, var n: Int) {
     throw new IllegalArgumentException("n should be grater than 0.")
 
   if (e <= 0.0 || e > 1.0)
-    throw new IllegalArgumentException("e should be 0.0 < e < 1.0")
+    throw new IllegalArgumentException("e should be 0.0 < e <= 1.0")
 
   if (n >= 4 / e) {
     prepare(BloomMode.Size, n, e)
@@ -35,6 +35,7 @@ class Bloom(var e: Double, var n: Int) {
   def this(size: Int) {
     this(0.001, size)
   }
+
   def add(key: Constants.Key) {
     val hashes = makeHashes(key)
     hashAdd(hashes)
@@ -68,7 +69,6 @@ class Bloom(var e: Double, var n: Int) {
 
     val m = 1 << this.mb
     this.n = (Math.floor(Math.log(1 - p) / Math.log(1 - 1 / m))).intValue()
-
 
     for (i <- 1 to k) {
       this.a = new BitSet :: this.a
