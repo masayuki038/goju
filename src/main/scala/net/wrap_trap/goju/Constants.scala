@@ -12,9 +12,9 @@ import java.nio.charset.Charset
   */
 object Constants {
   type Key = Array[Byte]
-  type FilePos = (Int, Int)
 
-  val TOMBSTONE = "deleted".getBytes(Charset.forName("UTF-8"))
+  val TOMBSTONE = Utils.toBytes("deleted")
+  val FILE_FORMAT = "HAN2"
 }
 
 sealed trait Value
