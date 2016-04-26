@@ -2,6 +2,8 @@ package net.wrap_trap.goju
 
 import java.nio.charset.Charset
 
+import org.joda.time.DateTime
+
 /**
   * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
 
@@ -13,5 +15,9 @@ import java.nio.charset.Charset
 object Utils {
   def toBytes(str: String): Array[Byte] = {
     str.getBytes(Charset.forName("UTF-8"));
+  }
+
+  def hasExpired(ts: DateTime): Boolean = {
+    ts.isBefore(DateTime.now)
   }
 }

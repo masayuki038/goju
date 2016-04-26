@@ -4,6 +4,7 @@ import java.io.{OutputStream, FileOutputStream, BufferedOutputStream}
 
 import akka.actor.{Props, ActorSystem, Actor}
 import net.wrap_trap.goju.samples.HelloAkka
+import org.joda.time.DateTime
 
 import scala.io.Source
 
@@ -52,13 +53,24 @@ class Writer(val name: String, var state: Option[State] = None) extends Actor {
   }
 
   def receive = {
-    case (PlainRpcProtocol.cast, _) => {
-      //handleCast(_)
+    case (PlainRpcProtocol.cast, msg) => handleCast(msg)
+    case (PlainRpcProtocol.call, msg) => handleCall(msg)
+  }
+
+  def handleCast(msg: Any) = {
+    msg match {
+      case ('add, key, (Constants.TOMBSTONE, ts: DateTime)) => {
+        if(!Utils.hasExpired(ts)) {
+          // appendNode
+        }
+      }
     }
   }
 
-  def handleCast = {
+  def handleCall(msg: Any) = {
+
   }
+
 
   def doOpen() = {
     val settings = Settings.getSettings
