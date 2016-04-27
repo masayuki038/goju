@@ -43,7 +43,7 @@ class Writer(val name: String, var state: Option[State] = None) extends Actor {
         fileFormat.length,
         0L,
         0,
-        Array(),
+        List.empty[Node],
         name,
         new Bloom(settings.getInt("size", 2048)),
         settings.getInt("block_size", NODE_SIZE),
@@ -77,14 +77,32 @@ class Writer(val name: String, var state: Option[State] = None) extends Actor {
     val writeBufferSize = settings.getInt("write_buffer_size", 512 * 1024)
     new BufferedOutputStream(new FileOutputStream(this.name), writeBufferSize)
   }
+
+  def appendNode(level: Int, key: Key, value: Value): Unit = {
+    state match {
+      case Some(s) => s.nodes match {
+        case List() => {
+          s.nodes = Node(level) :: s.nodes
+          appendNode(level, key, value)
+        }
+        case List(node, _*) if(level < node.level) => {
+          s.nodes = Node(node.level) :: s.nodes.tail
+          appendNode(level, key, value)
+        }
+//        case _ => {
+//
+//        }
+      }
+    }
+  }
 }
 
-case class Node(level: Int, members: Array[(Key, Value)], size: Int = 0)
+case class Node(level: Int, members: Array[(Key, Value)] = Array(), size: Int = 0)
 case class State(indexFile: OutputStream,
                   indexFilePos: Int,
                   lastNodePos: Long,
                   lastNodeSize: Int,
-                  nodes: Array[Node],
+                  var nodes: List[Node],
                   name: String,
                   bloom: Bloom,
                   blockSize: Int,
