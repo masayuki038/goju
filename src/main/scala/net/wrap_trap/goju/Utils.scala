@@ -2,6 +2,8 @@ package net.wrap_trap.goju
 
 import java.nio.charset.Charset
 
+import com.google.common.primitives.UnsignedBytes
+import net.wrap_trap.goju.Constants.Key
 import org.joda.time.DateTime
 
 /**
@@ -19,5 +21,24 @@ object Utils {
 
   def hasExpired(ts: DateTime): Boolean = {
     ts.isBefore(DateTime.now)
+  }
+
+  def compareBytes(a: Array[Byte], b: Array[Byte]): Int = {
+    return UnsignedBytes.lexicographicalComparator().compare(a, b);
+  }
+
+  def estimateNodeSizeIncrement(key: Key, value: Value): Int = {
+    val keySize = key.length
+    val valueSize = value.asInstanceOf[Any] match {
+      case ExpValue(i: Int, _) => 5 + 4
+      case ExpValue(bytes: Array[Byte], _) => bytes.length + 5 + 4
+      case ExpValue(s: Symbol, _) => 8 + 4
+      case ExpValue(a: Any, _) if(isTuple(a)) => 13 + 4
+    }
+    keySize + valueSize
+  }
+
+  def isTuple(x: Any): Boolean = {
+    x.getClass.getName matches """^scala\.Tuple(\d+).*"""
   }
 }

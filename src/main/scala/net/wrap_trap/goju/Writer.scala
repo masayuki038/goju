@@ -47,7 +47,7 @@ class Writer(val name: String, var state: Option[State] = None) extends Actor {
         name,
         new Bloom(settings.getInt("size", 2048)),
         settings.getInt("block_size", NODE_SIZE),
-        Array()
+        List.empty[Any]
       )
     )
   }
@@ -89,15 +89,22 @@ class Writer(val name: String, var state: Option[State] = None) extends Actor {
           s.nodes = Node(node.level) :: s.nodes.tail
           appendNode(level, key, value)
         }
-//        case _ => {
-//
-//        }
+        case  List(node, _*) => {
+          node.members match {
+            case List((prevKey, _), _*) => {
+              if(Utils.compareBytes(key, prevKey) < 0) {
+                throw new IllegalStateException("key < prevKey");
+              }
+              //val size = node.size +
+            }
+          }
+        }
       }
     }
   }
 }
 
-case class Node(level: Int, members: Array[(Key, Value)] = Array(), size: Int = 0)
+case class Node(level: Int, members: List[(Key, Value)] = List.empty, size: Int = 0)
 case class State(indexFile: OutputStream,
                   indexFilePos: Int,
                   lastNodePos: Long,
@@ -106,7 +113,7 @@ case class State(indexFile: OutputStream,
                   name: String,
                   bloom: Bloom,
                   blockSize: Int,
-                  opts: Array[Any],
+                  opts: List[Any],
                   valueCount: Int = 0,
                   tombstoneCount: Int = 0)
 
