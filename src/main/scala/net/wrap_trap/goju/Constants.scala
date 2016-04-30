@@ -18,5 +18,5 @@ object Constants {
 }
 
 sealed trait Value
-final case class ExpValue(bytes: Array[Byte], expiry: Int = -1) extends Value
+final case class ExpValue(value: Any, expiry: Int = -1) extends Value
 final case class FilePos(pos: Long, len: Int) extends Value
