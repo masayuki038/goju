@@ -16,7 +16,7 @@ import org.joda.time.DateTime
   */
 object Utils {
   def toBytes(str: String): Array[Byte] = {
-    str.getBytes(Charset.forName("UTF-8"));
+    str.getBytes(Charset.forName("UTF-8"))
   }
 
   def hasExpired(ts: DateTime): Boolean = {
@@ -24,7 +24,7 @@ object Utils {
   }
 
   def compareBytes(a: Array[Byte], b: Array[Byte]): Int = {
-    return UnsignedBytes.lexicographicalComparator().compare(a, b);
+    return UnsignedBytes.lexicographicalComparator().compare(a, b)
   }
 
   def estimateNodeSizeIncrement(key: Key, value: Value): Int = {
