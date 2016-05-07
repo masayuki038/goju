@@ -41,4 +41,13 @@ object Utils {
   def isTuple(x: Any): Boolean = {
     x.getClass.getName matches """^scala\.Tuple(\d+).*"""
   }
+
+//  def encodeIndexNodes(entryList: List[(Key, Value)],  final Compress compress): Array[Byte] = {
+//    List<byte[]> encoded = entryList.stream()
+//      .map((entry) -> encodeIndexNode(entry, compress)).collect(Collectors.toList());
+//    encoded.add(0, new byte[]{(byte)0xFF});
+//    byte[] serialized = serializeEncodedEntryList(encoded);
+//    return compress.compress(serialized);
+//  }
+
 }

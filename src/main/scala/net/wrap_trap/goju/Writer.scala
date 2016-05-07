@@ -79,14 +79,14 @@ class Writer(val name: String, var state: Option[State] = None) extends Actor {
   }
 
   def appendNode(level: Int, key: Key, value: Value): Unit = {
-    state match {
+    this.state match {
       case Some(s) => s.nodes match {
         case List() => {
-          s.nodes = Node(level) :: s.nodes
+          this.state = Option(s.copy(nodes = Node(level) :: s.nodes))
           appendNode(level, key, value)
         }
         case List(node, _*) if(level < node.level) => {
-          s.nodes = Node(node.level) :: s.nodes.tail
+          this.state = Option(s.copy(nodes = Node(node.level) :: s.nodes.tail))
           appendNode(level, key, value)
         }
         case  List(node, _*) => {
@@ -95,12 +95,38 @@ class Writer(val name: String, var state: Option[State] = None) extends Actor {
               if(Utils.compareBytes(key, prevKey) < 0) {
                 throw new IllegalStateException("key < prevKey");
               }
-              //val size = node.size +
+              val newSize = node.size + Utils.estimateNodeSizeIncrement(key, value)
+              s.bloom.add(key)
+              val (tc1, vc1) = node.level match {
+                case 0 => value match {
+                  case _: ExpValue => (s.tombstoneCount + 1, s.valueCount)
+                  case _ => (s.tombstoneCount, s.valueCount + 1)
+                }
+                case _ => (s.tombstoneCount, s.valueCount)
+              }
+              val currentNode = node.copy(members = (key, value) :: node.members, size = newSize)
+              val newState = s.copy(nodes = currentNode :: s.nodes.tail, valueCount = vc1, tombstoneCount = tc1)
+              this.state = Option(newState)
+
+              if(newSize >= newState.blockSize) {
+                flushNodeBuffer
+              }
             }
           }
         }
       }
     }
+  }
+
+  def flushNodeBuffer() = {
+//    this.state match {
+//      case Some(s) => s.nodes match {
+//        case  List(node, _*) => {
+//          val orderedMembers = node.members.reverse
+//
+//        }
+//      }
+//    }
   }
 }
 
@@ -109,7 +135,7 @@ case class State(indexFile: OutputStream,
                   indexFilePos: Int,
                   lastNodePos: Long,
                   lastNodeSize: Int,
-                  var nodes: List[Node],
+                  nodes: List[Node],
                   name: String,
                   bloom: Bloom,
                   blockSize: Int,

@@ -4,7 +4,7 @@ import akka.testkit.TestKit
 import org.scalatest.{BeforeAndAfterAll, Suite}
 
 /**
-  * goju-to: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
+  * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
 
   * Copyright (c) 2016 Masayuki Takahashi
 
