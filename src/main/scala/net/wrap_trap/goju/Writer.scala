@@ -3,6 +3,7 @@ package net.wrap_trap.goju
 import java.io.{OutputStream, FileOutputStream, BufferedOutputStream}
 
 import akka.actor.{Props, ActorSystem, Actor}
+import net.wrap_trap.goju.element.Element
 import net.wrap_trap.goju.samples.HelloAkka
 import org.joda.time.DateTime
 
@@ -78,33 +79,33 @@ class Writer(val name: String, var state: Option[State] = None) extends Actor {
     new BufferedOutputStream(new FileOutputStream(this.name), writeBufferSize)
   }
 
-  def appendNode(level: Int, key: Key, value: Value): Unit = {
+  def appendNode(level: Int, element: Element): Unit = {
     this.state match {
       case Some(s) => s.nodes match {
         case List() => {
           this.state = Option(s.copy(nodes = Node(level) :: s.nodes))
-          appendNode(level, key, value)
+          appendNode(level, element)
         }
         case List(node, _*) if(level < node.level) => {
           this.state = Option(s.copy(nodes = Node(node.level) :: s.nodes.tail))
-          appendNode(level, key, value)
+          appendNode(level, element)
         }
         case  List(node, _*) => {
           node.members match {
-            case List((prevKey, _), _*) => {
-              if(Utils.compareBytes(key, prevKey) < 0) {
+            case List(member, _*) => {
+              if(Utils.compareBytes(element.key(), member.key()) < 0) {
                 throw new IllegalStateException("key < prevKey");
               }
-              val newSize = node.size + Utils.estimateNodeSizeIncrement(key, value)
-              s.bloom.add(key)
+              val newSize = node.size + element.estimateNodeSizeIncrement
+              s.bloom.add(element.key())
               val (tc1, vc1) = node.level match {
-                case 0 => value match {
-                  case _: ExpValue => (s.tombstoneCount + 1, s.valueCount)
+                case 0 => element.expired() match {
+                  case true => (s.tombstoneCount + 1, s.valueCount)
                   case _ => (s.tombstoneCount, s.valueCount + 1)
                 }
                 case _ => (s.tombstoneCount, s.valueCount)
               }
-              val currentNode = node.copy(members = (key, value) :: node.members, size = newSize)
+              val currentNode = node.copy(members = element :: node.members, size = newSize)
               val newState = s.copy(nodes = currentNode :: s.nodes.tail, valueCount = vc1, tombstoneCount = tc1)
               this.state = Option(newState)
 
@@ -130,7 +131,7 @@ class Writer(val name: String, var state: Option[State] = None) extends Actor {
   }
 }
 
-case class Node(level: Int, members: List[(Key, Value)] = List.empty, size: Int = 0)
+case class Node(level: Int, members: List[Element] = List.empty, size: Int = 0)
 case class State(indexFile: OutputStream,
                   indexFilePos: Int,
                   lastNodePos: Long,

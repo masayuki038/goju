@@ -12,11 +12,8 @@ import java.nio.charset.Charset
   */
 object Constants {
   type Key = Array[Byte]
+  type Value = Any
 
   val TOMBSTONE = Utils.toBytes("deleted")
   val FILE_FORMAT = "HAN2"
 }
-
-sealed trait Value
-final case class ExpValue(value: Any, expiry: Int = -1) extends Value
-final case class FilePos(pos: Long, len: Int) extends Value
