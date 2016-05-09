@@ -13,7 +13,7 @@ import net.wrap_trap.goju.Constants
   * This software is released under the MIT License.
   * http://opensource.org/licenses/mit-license.php
   */
-class KeyValue(val _key: Key, val _value: Value, val ts: Option[DateTime] = None) extends Element {
+class KeyValue(val _key: Key, val _value: Value, val _timestamp: Option[DateTime] = None) extends Element {
 
   override def key(): Key = {
     this._key
@@ -24,10 +24,14 @@ class KeyValue(val _key: Key, val _value: Value, val ts: Option[DateTime] = None
   }
 
   override def expired(): Boolean = {
-    ts.isDefined match {
+    this._timestamp.isDefined match {
       case true => (ts.get.getMillis < System.currentTimeMillis())
       case _ => false
     }
+  }
+
+  def timestamp(): Option[DateTime] = {
+    this._timestamp
   }
 
   override def tombstoned(): Boolean = {
