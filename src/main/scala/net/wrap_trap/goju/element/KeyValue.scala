@@ -25,7 +25,7 @@ class KeyValue(val _key: Key, val _value: Value, val _timestamp: Option[DateTime
 
   override def expired(): Boolean = {
     this._timestamp.isDefined match {
-      case true => (ts.get.getMillis < System.currentTimeMillis())
+      case true => (this._timestamp.get.getMillis < System.currentTimeMillis())
       case _ => false
     }
   }
