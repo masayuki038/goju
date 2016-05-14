@@ -17,14 +17,21 @@ import net.wrap_trap.goju.element.{KeyValue, Element}
   * This software is released under the MIT License.
   * http://opensource.org/licenses/mit-license.php
   */
-object Serializer {
+object SerDes {
   def serialize(entry: Element): Array[Byte] = {
     entry match {
       case kv: KeyValue => serialize(kv)
     }
   }
 
-  private def serialize(kv: KeyValue): Array[Byte] = {
+  def serialize(kv: KeyValue): Array[Byte] = {
+    kv.tombstoned match {
+      case true => serializeTombstoned(kv)
+      case _ => serializeKeyValue(kv)
+    }
+  }
+
+  private def serializeKeyValue(kv: KeyValue): Array[Byte] = {
     val baos = new ByteArrayOutputStream
     using(new ElementOutputStream((baos))) { eos =>
       kv.timestamp match {
@@ -35,7 +42,23 @@ object Serializer {
         case _ => eos.writeByte(TAG_KV_DATA)
       }
       eos.writeInt(kv.key.length)
+      eos.write(kv.key)
       eos.write(serializeValue(kv.value))
+      baos.toByteArray
+    }
+  }
+
+  private def serializeTombstoned(tombstoned: KeyValue): Array[Byte] = {
+    val baos = new ByteArrayOutputStream
+    using(new ElementOutputStream((baos))) { eos =>
+      tombstoned.timestamp match {
+        case Some(ts) => {
+          eos.writeByte(TAG_DELETED2)
+          eos.writeTimestamp(ts.getMillis / 1000L)
+        }
+        case _ => eos.writeByte(TAG_DELETED)
+      }
+      eos.write(tombstoned.key)
       baos.toByteArray
     }
   }
