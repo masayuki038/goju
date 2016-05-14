@@ -23,4 +23,10 @@ object Constants {
   val TAG_TRANSACT = 0x83.asInstanceOf[Byte]
   val TAG_KV_DATA2 = 0x84.asInstanceOf[Byte]
   val TAG_DELETED2 = 0x85.asInstanceOf[Byte]
+
+  val SIZE_OF_ENTRY_TYPE = 1
+  val SIZE_OF_KEYSIZE = 4
+  val SIZE_OF_TIMESTAMP = 4
+  val SIZE_OF_POS = 8
+  val SIZE_OF_LEN = 4
 }
