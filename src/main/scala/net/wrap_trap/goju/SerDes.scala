@@ -23,8 +23,8 @@ object SerDes {
     bytes(0) match {
       case TAG_KV_DATA => deserializeKeyValue(bytes, false)
       case TAG_KV_DATA2 => deserializeKeyValue(bytes, true)
-      case TAG_DELETED => ???
-      case TAG_DELETED2 => ???
+      case TAG_DELETED => deserializeTombstoned(bytes, false)
+      case TAG_DELETED2 => deserializeTombstoned(bytes, true)
     }
   }
 
