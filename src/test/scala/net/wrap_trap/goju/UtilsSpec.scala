@@ -12,7 +12,7 @@ import org.scalatest.{FunSpec, BeforeAndAfter, Matchers, FlatSpec}
   * This software is released under the MIT License.
   * http://opensource.org/licenses/mit-license.php
   */
-class UtilsSpec  extends FunSpec with Matchers with BeforeAndAfter {
+class UtilsSpec extends FunSpec with Matchers with BeforeAndAfter {
 
   describe("now + 1min")  {
     it("should not be expired") {
