@@ -15,7 +15,7 @@ import org.scalatest.{BeforeAndAfter, Matchers, FunSpec}
 class SerDesSpec extends FunSpec with Matchers with BeforeAndAfter {
 
   describe("Int value") {
-    it("should not be serialize and deserialize") {
+    it("should same content after serializing and deserializing") {
       testKeyValue(new KeyValue(Utils.toBytes("Int Value"), Int.MaxValue))
       testKeyValue(new KeyValue(Utils.toBytes("Int Value"), Int.MinValue))
       testKeyValueWithTimestamp(new KeyValue(Utils.toBytes("Int Value"), Int.MaxValue, Option(new DateTime())))
@@ -24,7 +24,7 @@ class SerDesSpec extends FunSpec with Matchers with BeforeAndAfter {
   }
 
   describe("Double value") {
-    it("should not be serialize and deserialize") {
+    it("should same content after serializing and deserializing") {
       testKeyValue(new KeyValue(Utils.toBytes("Double Value"), Double.MaxValue))
       testKeyValue(new KeyValue(Utils.toBytes("Double Value"), Double.MinValue))
       testKeyValueWithTimestamp(new KeyValue(Utils.toBytes("Double Value"), Double.MaxValue, Option(new DateTime())))
@@ -33,14 +33,14 @@ class SerDesSpec extends FunSpec with Matchers with BeforeAndAfter {
   }
 
   describe("String value") {
-    it("should not be serialize and deserialize") {
+    it("should same content after serializing and deserializing") {
       testKeyValue(new KeyValue(Utils.toBytes("String Value"), "＃１２3"))
       testKeyValueWithTimestamp(new KeyValue(Utils.toBytes("String Value"), "＃１２3", Option(new DateTime())))
     }
   }
 
   describe("Binary value") {
-    it("should not be serialize and deserialize") {
+    it("should same content after serializing and deserializing") {
       testKeyValue(new KeyValue(Utils.toBytes("Binary Value"), Array[Byte](0x01, 0x02, 0x3)))
       testKeyValueWithTimestamp(new KeyValue(
         Utils.toBytes("Binary Value"), Array[Byte](0x01, 0x02, 0x3), Option(new DateTime())))
@@ -48,7 +48,7 @@ class SerDesSpec extends FunSpec with Matchers with BeforeAndAfter {
   }
 
   describe("Boolean value") {
-    it("should not be serialize and deserialize") {
+    it("should same content after serializing and deserializing") {
       testKeyValue(new KeyValue(Utils.toBytes("Boolean Value"), true))
       testKeyValue(new KeyValue(Utils.toBytes("Boolean Value"), false))
       testKeyValueWithTimestamp(new KeyValue(Utils.toBytes("Boolean Value"), true, Option(new DateTime())))
@@ -57,7 +57,7 @@ class SerDesSpec extends FunSpec with Matchers with BeforeAndAfter {
   }
 
   describe("Tombstoned value") {
-    it("should not be serialize and deserialize") {
+    it("should same content after serializing and deserializing") {
       testKeyValue(new KeyValue(Utils.toBytes("Tombstoned Value"), Constants.TOMBSTONE), true)
       testKeyValueWithTimestamp(
         new KeyValue(Utils.toBytes("Tombstoned Value"), Constants.TOMBSTONE, Option(new DateTime())), true)
