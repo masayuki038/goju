@@ -33,6 +33,7 @@ object SerDes {
       case TAG_KV_DATA2 => deserializeKeyValue(bytes, true)
       case TAG_DELETED => deserializeTombstoned(bytes, false)
       case TAG_DELETED2 => deserializeTombstoned(bytes, true)
+      case TAG_POSLEN => deserializePosLen(bytes)
     }
   }
 
@@ -75,7 +76,7 @@ object SerDes {
     }
   }
 
-  private def serializePosLen(posLen: PosLen): Array[Byte] = {
+  private def serialize(posLen: PosLen): Array[Byte] = {
     val baos = new ByteArrayOutputStream
     using(new ElementOutputStream(baos)) { eos =>
       eos.writeByte(TAG_POSLEN)
@@ -127,6 +128,18 @@ object SerDes {
       val readSize = SIZE_OF_ENTRY_TYPE + sizeOfTimestamp
       val key = eis.read(body.length - readSize)
       new KeyValue(key, TOMBSTONE, timestamp)
+    }
+  }
+
+  private def deserializePosLen(body: Array[Byte]): PosLen = {
+    val bais = new ByteArrayInputStream(body)
+    using(new ElementInputStream(bais)) { eis =>
+      val _ = eis.read
+      val pos = eis.readLong
+      val len = eis.readInt
+      val readSize = SIZE_OF_ENTRY_TYPE + SIZE_OF_POS + SIZE_OF_LEN
+      val key = eis.read(body.length - readSize);
+      new PosLen(key, pos, len)
     }
   }
 
