@@ -1,6 +1,6 @@
 package net.wrap_trap.goju
 
-import net.wrap_trap.goju.element.KeyValue
+import net.wrap_trap.goju.element.{PosLen, KeyValue}
 import org.joda.time.DateTime
 import org.scalatest.{FunSpec, BeforeAndAfter, Matchers, FlatSpec}
 
@@ -49,6 +49,40 @@ class UtilsSpec extends FunSpec with Matchers with BeforeAndAfter {
       it("should return the esitmate size for adding a node") {
         new KeyValue(Utils.toBytes("test"), ("foobar", 2)).estimateNodeSizeIncrement should equal(21)
       }
+    }
+  }
+
+  describe("encodeIndexNode") {
+    it("should encode a KeyValue") {
+      val now = new DateTime
+      val kv = new KeyValue(Utils.toBytes("hoge"), "test", Option(now))
+      val ret = Utils.decodeIndexNode(Utils.encodeIndexNode(kv))
+      ret.isInstanceOf[KeyValue] should be(true)
+      val kv2 = ret.asInstanceOf[KeyValue]
+      kv2.key should be(kv.key)
+      kv2.value should be(kv.value)
+      kv2.timestamp().get.getMillis should be(now.getMillis / 1000L * 1000L)
+    }
+
+    it("should encode a Tombstoned") {
+      val now = new DateTime
+      val tombstoned = new KeyValue(Utils.toBytes("hoge"), Constants.TOMBSTONE, Option(now))
+      val ret = Utils.decodeIndexNode(Utils.encodeIndexNode(tombstoned))
+      ret.isInstanceOf[KeyValue] should be(true)
+      val tombstoned2 = ret.asInstanceOf[KeyValue]
+      tombstoned2.key should be(tombstoned.key)
+      tombstoned2.tombstoned should be(true)
+      tombstoned2.timestamp().get.getMillis should be(now.getMillis / 1000L * 1000L)
+    }
+
+    it("should encode a PosLen") {
+      val posLen = new PosLen(Utils.toBytes("hoge"), Long.MaxValue, Int.MaxValue)
+      val ret = Utils.decodeIndexNode(Utils.encodeIndexNode(posLen))
+      ret.isInstanceOf[PosLen] should be(true)
+      val posLen2 = ret.asInstanceOf[PosLen]
+      posLen2.key should be(posLen.key)
+      posLen2.pos should be(posLen.pos)
+      posLen2.len should be(posLen.len)
     }
   }
 }
