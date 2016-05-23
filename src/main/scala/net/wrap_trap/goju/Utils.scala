@@ -32,13 +32,22 @@ object Utils {
     return UnsignedBytes.lexicographicalComparator().compare(a, b)
   }
 
-//  def encodeIndexNodes(entryList: List[(Key, Value)],  final Compress compress): Array[Byte] = {
-//    List<byte[]> encoded = entryList.stream()
-//      .map((entry) -> encodeIndexNode(entry, compress)).collect(Collectors.toList());
-//    encoded.add(0, new byte[]{(byte)0xFF});
-//    byte[] serialized = serializeEncodedEntryList(encoded);
-//    return compress.compress(serialized);
-//  }
+  def encodeIndexNodes(elementList: List[Element],  compress: Compress): Array[Byte] = {
+    var encoded = elementList.map { element => encodeIndexNode(element) }
+    encoded = Array(0xff.asInstanceOf[Byte]) :: encoded
+    val serialized = SerDes.serializeByteArrayList(encoded)
+    compress.compress(serialized)
+  }
+
+  def decodeIndexNodes(packed: Array[Byte], compress: Compress): List[Element] = {
+    val serialized = compress.decompress(packed)
+    val encodedList = SerDes.deserializeByteArrayList(serialized)
+    val endTag = encodedList.head
+    if(endTag.length != 1 || endTag(0) != 0xff) {
+      throw new IllegalStateException("Invalid endTag")
+    }
+    encodedList.tail.map { bytes => decodeIndexNode(bytes) }
+  }
 
   def encodeIndexNode(e: Element): Array[Byte] = {
     val body = SerDes.serialize(e)

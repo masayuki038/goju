@@ -37,6 +37,20 @@ object SerDes {
     }
   }
 
+  def serializeByteArrayList(byteArrayList: List[Array[Byte]]): Array[Byte] = {
+    // TODO
+    byteArrayList.head
+  }
+
+  def deserializeByteArrayList(serialized: Array[Byte]): List[Array[Byte]] = {
+    val buf = MsgInBuffer(serialized)
+    val nextType = buf.nextType
+    // TODO
+    nextType match {
+      case MsgType.BINARY => List(buf.unpackBinary)
+    }
+  }
+
   private def serialize(kv: KeyValue): Array[Byte] = {
     kv.tombstoned match {
       case true => serializeTombstoned(kv)
