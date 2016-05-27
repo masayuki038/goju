@@ -46,10 +46,7 @@ class UtilsSpec extends FunSpec with Matchers with BeforeAndAfter {
       val kv = new KeyValue(Utils.toBytes("hoge"), "test", Option(now))
       val ret = Utils.decodeIndexNode(Utils.encodeIndexNode(kv))
       ret.isInstanceOf[KeyValue] should be(true)
-      val kv2 = ret.asInstanceOf[KeyValue]
-      kv2.key should be(kv.key)
-      kv2.value should be(kv.value)
-      kv2.timestamp().get.getMillis should be(now.getMillis / 1000L * 1000L)
+      assertKeyValue(ret.asInstanceOf[KeyValue], kv, now)
     }
 
     it("should encode a Tombstoned") {
@@ -57,20 +54,55 @@ class UtilsSpec extends FunSpec with Matchers with BeforeAndAfter {
       val tombstoned = new KeyValue(Utils.toBytes("hoge"), Constants.TOMBSTONE, Option(now))
       val ret = Utils.decodeIndexNode(Utils.encodeIndexNode(tombstoned))
       ret.isInstanceOf[KeyValue] should be(true)
-      val tombstoned2 = ret.asInstanceOf[KeyValue]
-      tombstoned2.key should be(tombstoned.key)
-      tombstoned2.tombstoned should be(true)
-      tombstoned2.timestamp().get.getMillis should be(now.getMillis / 1000L * 1000L)
+      assertTombstoned(ret.asInstanceOf[KeyValue], tombstoned, now)
     }
 
     it("should encode a PosLen") {
       val posLen = new PosLen(Utils.toBytes("hoge"), Long.MaxValue, Int.MaxValue)
       val ret = Utils.decodeIndexNode(Utils.encodeIndexNode(posLen))
       ret.isInstanceOf[PosLen] should be(true)
-      val posLen2 = ret.asInstanceOf[PosLen]
-      posLen2.key should be(posLen.key)
-      posLen2.pos should be(posLen.pos)
-      posLen2.len should be(posLen.len)
+      assertPosLen(ret.asInstanceOf[PosLen], posLen)
     }
+  }
+
+  describe("encodeIndexNodes") {
+    it("should encode some elements") {
+      val now = new DateTime
+      val compress = Compress(Constants.COMPRESS_PLAIN)
+
+      val kv = new KeyValue(Utils.toBytes("hoge"), "test", Option(now))
+      val tombstoned = new KeyValue(Utils.toBytes("hoge"), Constants.TOMBSTONE, Option(now))
+      val posLen = new PosLen(Utils.toBytes("hoge"), Long.MaxValue, Int.MaxValue)
+      val target = List(kv, tombstoned, posLen)
+      val packed = Utils.encodeIndexNodes(target, compress)
+      val unpacked = Utils.decodeIndexNodes(packed, compress)
+
+      unpacked(0).isInstanceOf[KeyValue] should be(true)
+      assertKeyValue(unpacked(0).asInstanceOf[KeyValue], kv, now)
+
+      unpacked(1).isInstanceOf[KeyValue] should be(true)
+      assertTombstoned(unpacked(1).asInstanceOf[KeyValue], tombstoned, now)
+
+      unpacked(2).isInstanceOf[PosLen] should be(true)
+      assertPosLen(unpacked(2).asInstanceOf[PosLen], posLen)
+    }
+  }
+
+  def assertKeyValue(target: KeyValue, expected: KeyValue, now: DateTime) = {
+    target.key should be(expected.key)
+    target.value should be(expected.value)
+    target.timestamp().get.getMillis should be(now.getMillis / 1000L * 1000L)
+  }
+
+  def assertTombstoned(target: KeyValue, expected: KeyValue, now: DateTime) = {
+    target.key should be(expected.key)
+    target.tombstoned should be(true)
+    target.timestamp().get.getMillis should be(now.getMillis / 1000L * 1000L)
+  }
+
+  def assertPosLen(target: PosLen, expected: PosLen) = {
+    target.key should be(expected.key)
+    target.pos should be(expected.pos)
+    target.len should be(expected.len)
   }
 }

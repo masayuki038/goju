@@ -1,10 +1,8 @@
 package net.wrap_trap.goju
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
-import java.math.BigDecimal
-import java.math.BigInteger
 
-import msgpack4z.{MsgType, MsgInBuffer, MsgOutBuffer}
+import msgpack4z._
 import net.wrap_trap.goju.Constants._
 import net.wrap_trap.goju.Helper._
 import net.wrap_trap.goju.element.{PosLen, KeyValue, Element}
@@ -38,17 +36,15 @@ object SerDes {
   }
 
   def serializeByteArrayList(byteArrayList: List[Array[Byte]]): Array[Byte] = {
-    // TODO
-    byteArrayList.head
+    import msgpack4z.CodecInstances.all._
+    val binaryList = byteArrayList.map(byteArray => new Binary(byteArray))
+    MsgpackCodec[List[Binary]].toBytes(binaryList, MsgOutBuffer.create())
   }
 
   def deserializeByteArrayList(serialized: Array[Byte]): List[Array[Byte]] = {
-    val buf = MsgInBuffer(serialized)
-    val nextType = buf.nextType
-    // TODO
-    nextType match {
-      case MsgType.BINARY => List(buf.unpackBinary)
-    }
+    import msgpack4z.CodecInstances.all._
+    val binaryList = MsgpackCodec[List[Binary]].unpackAndClose(MsgInBuffer(serialized)) | List.empty[Binary]
+    binaryList.map(binary => binary.value)
   }
 
   private def serialize(kv: KeyValue): Array[Byte] = {

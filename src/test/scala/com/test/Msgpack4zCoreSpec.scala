@@ -9,9 +9,11 @@ import org.scalatest.{Matchers, FlatSpec}
 class Msgpack4zCoreSpec extends FlatSpec with Matchers {
   "List[Int]" should "serialize and deserialize" in {
     import msgpack4z.CodecInstances.all._
-    val target = List(1,2,3)
-    val packed = MsgpackCodec[List[Int]].toBytes(target, MsgOutBuffer.create())
-    val unpacked = MsgpackCodec[List[Int]].unpackAndClose(MsgInBuffer(packed))
-    unpacked.getOrElse(List.empty[Int]) should be(target)
+    val target = {
+      List(new Binary(Array(0x00.asInstanceOf[Byte], 0x01.asInstanceOf[Byte])))
+    }
+    val packed = MsgpackCodec[List[Binary]].toBytes(target, MsgOutBuffer.create())
+    val unpacked = MsgpackCodec[List[Binary]].unpackAndClose(MsgInBuffer(packed))
+    unpacked.getOrElse(List.empty[Array[Byte]]) should be(target)
   }
 }

@@ -38,7 +38,7 @@ object Utils {
     val serialized = compress.decompress(packed)
     val encodedList = SerDes.deserializeByteArrayList(serialized)
     val endTag = encodedList.head
-    if(endTag.length != 1 || endTag(0) != 0xff) {
+    if(endTag.length != 1 || endTag(0) != 0xff.asInstanceOf[Byte]) {
       throw new IllegalStateException("Invalid endTag")
     }
     encodedList.tail.map { bytes => decodeIndexNode(bytes) }

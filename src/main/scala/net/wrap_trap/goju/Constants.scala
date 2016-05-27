@@ -29,4 +29,6 @@ object Constants {
   val SIZE_OF_TIMESTAMP = 4
   val SIZE_OF_POS = 8
   val SIZE_OF_LEN = 4
+
+  val COMPRESS_PLAIN = 0x00.asInstanceOf[Byte]
 }
