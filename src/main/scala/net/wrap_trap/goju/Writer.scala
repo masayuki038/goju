@@ -59,13 +59,13 @@ class Writer(val name: String, var state: Option[State] = None) extends Actor {
   }
 
   def handleCast(msg: Any) = {
-    msg match {
-      case ('add, key, (Constants.TOMBSTONE, ts: DateTime)) => {
-        if(!Utils.hasExpired(ts)) {
-          // appendNode
-        }
-      }
-    }
+//    msg match {
+//      case ('add, key, (Constants.TOMBSTONE, ts: DateTime)) => {
+//        if(!Utils.hasExpired(ts)) {
+//          // appendNode
+//        }
+//      }
+//    }
   }
 
   def handleCall(msg: Any) = {

@@ -14,18 +14,6 @@ import org.scalatest.{FunSpec, BeforeAndAfter, Matchers, FlatSpec}
   */
 class UtilsSpec extends FunSpec with Matchers with BeforeAndAfter {
 
-  describe("now + 1min")  {
-    it("should not be expired") {
-      Utils.hasExpired(DateTime.now.plusMinutes(1)) should equal(false)
-    }
-  }
-
-  describe("now - 1min") {
-    it("should be expired") {
-      Utils.hasExpired(DateTime.now.plusMinutes(-1)) should equal(true)
-    }
-  }
-
   describe("estimateNodeSizeIncrement") {
     describe("when the value is Int") {
       it("should return the estimate size for adding a node") {

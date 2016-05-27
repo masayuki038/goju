@@ -23,11 +23,6 @@ object Utils {
     str.getBytes(Charset.forName("UTF-8"))
   }
 
-  // delete after
-  def hasExpired(ts: DateTime): Boolean = {
-    ts.isBefore(DateTime.now)
-  }
-
   def compareBytes(a: Array[Byte], b: Array[Byte]): Int = {
     return UnsignedBytes.lexicographicalComparator().compare(a, b)
   }
