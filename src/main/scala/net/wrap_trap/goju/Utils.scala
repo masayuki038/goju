@@ -23,6 +23,22 @@ object Utils {
     str.getBytes(Charset.forName("UTF-8"))
   }
 
+  def to4Bytes(a: Int): Array[Byte] = {
+    val bytes = Array[Byte](4)
+    bytes(3) =(0x000000ff & (a)).asInstanceOf[Byte]
+    bytes(2) = (0x000000ff & (a >>> 8)).asInstanceOf[Byte]
+    bytes(1) = (0x000000ff & (a >>> 16)).asInstanceOf[Byte]
+    bytes(0) = (0x000000ff & (a >>> 24)).asInstanceOf[Byte]
+    return bytes
+  }
+
+  def to2Bytes(a: Int): Array[Byte] = {
+    val bytes = Array[Byte](2)
+    bytes(1) =(0x000000ff & (a)).asInstanceOf[Byte]
+    bytes(0) = (0x000000ff & (a >>> 8)).asInstanceOf[Byte]
+    return bytes
+  }
+
   def compareBytes(a: Array[Byte], b: Array[Byte]): Int = {
     return UnsignedBytes.lexicographicalComparator().compare(a, b)
   }

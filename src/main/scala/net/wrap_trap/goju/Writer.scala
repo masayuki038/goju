@@ -3,7 +3,7 @@ package net.wrap_trap.goju
 import java.io.{OutputStream, FileOutputStream, BufferedOutputStream}
 
 import akka.actor.{Props, ActorSystem, Actor}
-import net.wrap_trap.goju.element.Element
+import net.wrap_trap.goju.element.{PosLen, Element}
 import net.wrap_trap.goju.samples.HelloAkka
 import org.joda.time.DateTime
 
@@ -120,14 +120,28 @@ class Writer(val name: String, var state: Option[State] = None) extends Actor {
   }
 
   def flushNodeBuffer() = {
-//    this.state match {
-//      case Some(s) => s.nodes match {
-//        case  List(node, _*) => {
-//          val orderedMembers = node.members.reverse
-//
-//        }
-//      }
-//    }
+    this.state match {
+      case Some(s) => s.nodes match {
+        case  node::rest => {
+          val level = node.level
+
+          val orderedMembers = node.members.reverse
+          val blockData = Utils.encodeIndexNodes(orderedMembers, Compress(Constants.COMPRESS_PLAIN))
+          val data = Utils.to4Bytes(blockData.size) ++ Utils.to2Bytes(level) ++ blockData
+          s.indexFile.write(data)
+
+          val posLen = new PosLen(orderedMembers.head.key, s.indexFilePos, blockData.size + 6)
+          appendNode(level + 1, posLen)
+          val newState = s.copy(
+            nodes = rest,
+            indexFilePos = s.indexFilePos + data.size,
+            lastNodePos = s.indexFilePos,
+            lastNodeSize = data.size
+          )
+          this.state = Option(newState)
+        }
+      }
+    }
   }
 }
 
