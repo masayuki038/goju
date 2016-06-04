@@ -2,8 +2,8 @@ package net.wrap_trap.goju
 
 import java.io.{OutputStream, FileOutputStream, BufferedOutputStream}
 
-import akka.actor.{Props, ActorSystem, Actor}
-import net.wrap_trap.goju.element.{PosLen, Element}
+import akka.actor.{ActorRef, Props, ActorSystem, Actor}
+import net.wrap_trap.goju.element.{KeyValue, PosLen, Element}
 import net.wrap_trap.goju.samples.HelloAkka
 import org.joda.time.DateTime
 
@@ -19,15 +19,21 @@ import net.wrap_trap.goju.Constants._
   * This software is released under the MIT License.
   * http://opensource.org/licenses/mit-license.php
   */
-object Writer {
+object Writer extends PlainRpc {
 
-  def open(name: String) = {
+  def open(name: String): ActorRef = {
     val system = ActorSystem("system")
     system.actorOf(Props(new Writer(name)))
   }
+
+  def add(actorRef: ActorRef, element: Element) = {
+    if(!element.expired()) {
+      cast(actorRef, element)
+    }
+  }
 }
 
-class Writer(val name: String, var state: Option[State] = None) extends Actor {
+class Writer(val name: String, var state: Option[State] = None) extends PlainRpc with Actor {
 
   val NODE_SIZE = 8*1024
 
@@ -59,19 +65,24 @@ class Writer(val name: String, var state: Option[State] = None) extends Actor {
   }
 
   def handleCast(msg: Any) = {
-//    msg match {
-//      case ('add, key, (Constants.TOMBSTONE, ts: DateTime)) => {
-//        if(!Utils.hasExpired(ts)) {
-//          // appendNode
-//        }
-//      }
-//    }
+    msg match {
+      case ('add, kv: KeyValue) => {
+        if(!kv.expired) {
+          appendNode(0, kv)
+        }
+      }
+    }
   }
 
   def handleCall(msg: Any) = {
-
+    msg match {
+      case ('count) => {
+        this.state match {
+          case Some(s) => s.valueCount + s.tombstoneCount
+        }
+      }
+    }
   }
-
 
   def doOpen() = {
     val settings = Settings.getSettings

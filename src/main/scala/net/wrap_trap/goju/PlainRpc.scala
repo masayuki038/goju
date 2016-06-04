@@ -15,7 +15,7 @@ import scala.concurrent.Await
   * This software is released under the MIT License.
   * http://opensource.org/licenses/mit-license.php
   */
-trait PlainRpc extends Actor {
+trait PlainRpc {
   def sendCall(pid: ActorRef, msg: Any) = {
     pid ! CALL(msg)
   }
@@ -24,8 +24,8 @@ trait PlainRpc extends Actor {
     pid ! CAST(msg)
   }
 
-  def sendReply(reply: Any) = {
-    sender ! REPLY(reply)
+  def sendReply(source: ActorRef, reply: Any) = {
+    source ! REPLY(reply)
   }
 
   def call(pid: ActorRef, request: Any)(implicit timeout: Timeout): Any = {

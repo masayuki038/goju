@@ -1,6 +1,6 @@
 package net.wrap_trap.goju
 
-import akka.actor.ActorSystem
+import akka.actor.{Actor, ActorSystem}
 import akka.pattern.AskTimeoutException
 import akka.testkit.{TestActorRef, TestKit}
 import akka.util.Timeout
@@ -53,7 +53,7 @@ class PlainRpcSpec extends TestKit(ActorSystem("test"))
   }
 }
 
-class PlainRpcActor extends PlainRpc {
+class PlainRpcActor extends Actor with PlainRpc {
 
   var messageType: Symbol = _
   var message: String = _
@@ -68,7 +68,7 @@ class PlainRpcActor extends PlainRpc {
       println("receive: call: " + msg)
       messageType = PlainRpcProtocol.call
       message = msg
-      sendReply("PlainRpcActor#reply")
+      sendReply(sender, "PlainRpcActor#reply")
     }
   }
 
