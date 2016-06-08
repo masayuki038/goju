@@ -8,7 +8,7 @@ import net.wrap_trap.goju.Helper._
 import org.joda.time.DateTime
 
 import net.wrap_trap.goju.Constants._
-import net.wrap_trap.goju.{ElementOutputStream, Constants}
+import net.wrap_trap.goju.{Utils, ElementOutputStream, Constants}
 
 /**
   * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
@@ -47,6 +47,7 @@ class KeyValue(val _key: Key, val _value: Value, val _timestamp: Option[DateTime
     val keySize = _key.length
     val valueSize = _value.asInstanceOf[Any] match {
       case i: Int => 5 + 4
+      case str: String => Utils.toBytes(str).length + 5 + 4
       case bytes: Array[Byte] => bytes.length + 5 + 4
       case s: Symbol => 8 + 4
       case a: Any if(isTuple(a)) => 13 + 4

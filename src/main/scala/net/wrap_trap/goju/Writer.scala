@@ -3,10 +3,12 @@ package net.wrap_trap.goju
 import java.io.{OutputStream, FileOutputStream, BufferedOutputStream}
 
 import akka.actor.{ActorRef, Props, ActorSystem, Actor}
+import akka.util.Timeout
 import net.wrap_trap.goju.element.{KeyValue, PosLen, Element}
 import net.wrap_trap.goju.samples.HelloAkka
 import org.joda.time.DateTime
 
+import scala.concurrent.duration._
 import scala.io.Source
 
 import net.wrap_trap.goju.Constants._
@@ -28,8 +30,13 @@ object Writer extends PlainRpc {
 
   def add(actorRef: ActorRef, element: Element) = {
     if(!element.expired()) {
-      cast(actorRef, element)
+      cast(actorRef, ('add, element))
     }
+  }
+
+  def count(actorRef: ActorRef): Int = {
+    implicit val timeout = Timeout(5 seconds)
+    call(actorRef, ('count)).asInstanceOf[Int]
   }
 }
 
@@ -61,7 +68,9 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
 
   def receive = {
     case (PlainRpcProtocol.cast, msg) => handleCast(msg)
-    case (PlainRpcProtocol.call, msg) => handleCall(msg)
+    case (PlainRpcProtocol.call, msg) => {
+      sendReply(sender, handleCall(msg))
+    }
   }
 
   def handleCast(msg: Any) = {
@@ -74,7 +83,7 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
     }
   }
 
-  def handleCall(msg: Any) = {
+  def handleCall(msg: Any): Any = {
     msg match {
       case ('count) => {
         this.state match {
@@ -103,27 +112,30 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
         }
         case  List(node, _*) => {
           node.members match {
+            case List() => {
+              // do nothing
+            }
             case List(member, _*) => {
               if(Utils.compareBytes(element.key(), member.key()) < 0) {
                 throw new IllegalStateException("key < prevKey");
               }
-              val newSize = node.size + element.estimateNodeSizeIncrement
-              s.bloom.add(element.key())
-              val (tc1, vc1) = node.level match {
-                case 0 => element.expired() match {
-                  case true => (s.tombstoneCount + 1, s.valueCount)
-                  case _ => (s.tombstoneCount, s.valueCount + 1)
-                }
-                case _ => (s.tombstoneCount, s.valueCount)
-              }
-              val currentNode = node.copy(members = element :: node.members, size = newSize)
-              val newState = s.copy(nodes = currentNode :: s.nodes.tail, valueCount = vc1, tombstoneCount = tc1)
-              this.state = Option(newState)
-
-              if(newSize >= newState.blockSize) {
-                flushNodeBuffer
-              }
             }
+          }
+          val newSize = node.size + element.estimateNodeSizeIncrement
+          s.bloom.add(element.key())
+          val (tc1, vc1) = node.level match {
+            case 0 => element.expired() match {
+              case true => (s.tombstoneCount + 1, s.valueCount)
+              case _ => (s.tombstoneCount, s.valueCount + 1)
+            }
+            case _ => (s.tombstoneCount, s.valueCount)
+          }
+          val currentNode = node.copy(members = element :: node.members, size = newSize)
+          val newState = s.copy(nodes = currentNode :: s.nodes.tail, valueCount = vc1, tombstoneCount = tc1)
+          this.state = Option(newState)
+
+          if(newSize >= newState.blockSize) {
+            flushNodeBuffer
           }
         }
       }
