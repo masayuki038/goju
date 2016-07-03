@@ -15,38 +15,28 @@ import scala.math.pow
   * This software is released under the MIT License.
   * http://opensource.org/licenses/mit-license.php
   */
-class Bloom(var e: Double, var n: Int) {
-
-  var mb:Int = _
-  var a = List.empty[BitSet]
-
-  if (n <= 0)
-    throw new IllegalArgumentException("n should be grater than 0.")
-
-  if (e <= 0.0 || e > 1.0)
-    throw new IllegalArgumentException("e should be 0.0 < e <= 1.0")
-
-  if (n >= 4 / e) {
-    prepare(BloomMode.Size, n, e)
-  } else {
-    prepare(BloomMode.Bit, n, e)
-  }
+class Bloom(var e: Double, var n: Int, var mb: Int, var a: List[BitSet]) {
 
   def this(size: Int) {
-    this(0.001, size)
+    this(0.001, size, 0, List.empty[BitSet])
   }
 
-  def add(key: Constants.Key) {
-    val hashes = makeHashes(key)
-    hashAdd(hashes)
+  def this(e: Double, n: Int) {
+    this(e, n, 0, List.empty[BitSet])
   }
 
-  def member(key: Constants.Key): Boolean = {
-    hashMember(makeHashes(key))
-  }
+  def init() {
+    if (n <= 0)
+      throw new IllegalArgumentException("n should be grater than 0.")
 
-  def log2(e: Double): Double = {
-    log(e) / log(2)
+    if (e <= 0.0 || e > 1.0)
+      throw new IllegalArgumentException("e should be 0.0 < e <= 1.0")
+
+    if (n >= 4 / e) {
+      prepare(BloomMode.Size, n, e)
+    } else {
+      prepare(BloomMode.Bit, n, e)
+    }
   }
 
   def prepare(mode: BloomMode, n1: Int, e1: Double) = {
@@ -74,6 +64,19 @@ class Bloom(var e: Double, var n: Int) {
       this.a = new BitSet :: this.a
     }
     //logger.info(String.format("mb: %d, n: %d, k: %d", this.mb, this.n, k));
+  }
+
+  def add(key: Constants.Key) {
+    val hashes = makeHashes(key)
+    hashAdd(hashes)
+  }
+
+  def member(key: Constants.Key): Boolean = {
+    hashMember(makeHashes(key))
+  }
+
+  def log2(e: Double): Double = {
+    log(e) / log(2)
   }
 
   def makeIndexes(mask: Int, hashes: Int): (Int, Int) = {

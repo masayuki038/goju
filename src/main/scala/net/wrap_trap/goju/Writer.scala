@@ -99,6 +99,16 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
     new BufferedOutputStream(new FileOutputStream(this.name), writeBufferSize)
   }
 
+//  def archiveNodes() = {
+//    this.state match {
+//      case Some(s) => s.nodes match {
+//        case List() => {
+//
+//        }
+//      }
+//    }
+//  }
+
   def appendNode(level: Int, element: Element): Unit = {
     this.state match {
       case Some(s) => s.nodes match {

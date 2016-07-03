@@ -1,6 +1,8 @@
 package net.wrap_trap.goju
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
+import java.io.{DataInputStream, ByteArrayInputStream, ByteArrayOutputStream, DataOutputStream}
+import java.util.BitSet
+import java.util.zip.{GZIPOutputStream, GZIPInputStream}
 
 import msgpack4z._
 import net.wrap_trap.goju.Constants._
@@ -45,6 +47,50 @@ object SerDes {
     import msgpack4z.CodecInstances.all._
     val binaryList = MsgpackCodec[List[Binary]].unpackAndClose(MsgInBuffer(serialized)) | List.empty[Binary]
     binaryList.map(binary => binary.value)
+  }
+
+  def serializeBloom(bloom: Bloom): Array[Byte] = {
+    import msgpack4z.CodecInstances.all._
+    val baos = new ByteArrayOutputStream
+    using(new DataOutputStream(baos)) { out =>
+      out.writeDouble(bloom.e)
+      out.writeInt(bloom.n)
+      out.writeInt(bloom.mb)
+      val binaryList = bloom.a.map(bitmap => new Binary(bitmap.toByteArray))
+      out.write(MsgpackCodec[List[Binary]].toBytes(binaryList, MsgOutBuffer.create()))
+      baos.toByteArray
+    }
+  }
+
+  def deserializeBloom(serialized: Array[Byte]): Bloom = {
+    import msgpack4z.CodecInstances.all._
+    using(new DataInputStream(new ByteArrayInputStream(serialized))) { in =>
+      val e = in.readDouble
+      val n = in.readInt
+      val mb = in.readInt
+      val buf = new Array[Byte](serialized.size - (8 + 4 + 4))
+      in.read(buf)
+      val binaryList = MsgpackCodec[List[Binary]].unpackAndClose(MsgInBuffer(buf)) | List.empty[Binary]
+      val a = binaryList.map(binary => BitSet.valueOf(binary.value))
+      new Bloom(e, n, mb, a)
+    }
+  }
+
+  def gzipCompress(bytes: Array[Byte]): Array[Byte] = {
+    val baos = new ByteArrayOutputStream
+    using(new GZIPOutputStream(baos)) { out =>
+      out.write(bytes)
+      baos.toByteArray
+    }
+  }
+
+  def gzipDecompress(compressed: Array[Byte]): Array[Byte] = {
+    val buf = new Array[Byte](8192)
+    val bais = new ByteArrayInputStream(compressed)
+    using(new GZIPInputStream(bais),  new ByteArrayOutputStream) { (in, out) =>
+      Stream.continually(in.read(buf)).takeWhile(_ != -1).foreach(_ => out.write(buf))
+      out.toByteArray
+    }
   }
 
   private def serialize(kv: KeyValue): Array[Byte] = {
