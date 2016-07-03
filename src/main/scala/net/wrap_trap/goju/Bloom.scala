@@ -19,10 +19,12 @@ class Bloom(var e: Double, var n: Int, var mb: Int, var a: List[BitSet]) {
 
   def this(size: Int) {
     this(0.001, size, 0, List.empty[BitSet])
+    init
   }
 
   def this(e: Double, n: Int) {
     this(e, n, 0, List.empty[BitSet])
+    init
   }
 
   def init() {
