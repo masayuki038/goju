@@ -76,6 +76,16 @@ class SerDesSpec extends FunSpec with Matchers with BeforeAndAfter {
     }
   }
 
+  describe("Bloom") {
+    it("should be returned same results after Ser/Des") {
+      val bloom = new Bloom(10)
+      bloom.add("test".getBytes)
+      val deserialized = SerDes.deserializeBloom(SerDes.serializeBloom(bloom))
+      bloom.member("test".getBytes) should equal(true)
+      bloom.member("test2".getBytes) should equal(false)
+    }
+  }
+
   def testKeyValueInternal(kv: KeyValue, tombstoned:Boolean): KeyValue = {
     val ret = SerDes.deserialize(SerDes.serialize(kv))
     ret.isInstanceOf[KeyValue] should be(true)
