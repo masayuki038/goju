@@ -23,9 +23,22 @@ object Utils {
     str.getBytes(Charset.forName("UTF-8"))
   }
 
+  def to8Bytes(a: Long): Array[Byte] = {
+    val bytes = new Array[Byte](8)
+    bytes(7) = (0x000000ff & (a)).asInstanceOf[Byte]
+    bytes(6) = (0x000000ff & (a >>> 8)).asInstanceOf[Byte]
+    bytes(5) = (0x000000ff & (a >>> 16)).asInstanceOf[Byte]
+    bytes(4) = (0x000000ff & (a >>> 24)).asInstanceOf[Byte]
+    bytes(3) = (0x000000ff & (a >>> 32)).asInstanceOf[Byte]
+    bytes(2) = (0x000000ff & (a >>> 40)).asInstanceOf[Byte]
+    bytes(1) = (0x000000ff & (a >>> 48)).asInstanceOf[Byte]
+    bytes(0) = (0x000000ff & (a >>> 56)).asInstanceOf[Byte]
+    return bytes
+  }
+
   def to4Bytes(a: Int): Array[Byte] = {
-    val bytes = Array[Byte](4)
-    bytes(3) =(0x000000ff & (a)).asInstanceOf[Byte]
+    val bytes = new Array[Byte](4)
+    bytes(3) = (0x000000ff & (a)).asInstanceOf[Byte]
     bytes(2) = (0x000000ff & (a >>> 8)).asInstanceOf[Byte]
     bytes(1) = (0x000000ff & (a >>> 16)).asInstanceOf[Byte]
     bytes(0) = (0x000000ff & (a >>> 24)).asInstanceOf[Byte]
@@ -33,7 +46,7 @@ object Utils {
   }
 
   def to2Bytes(a: Int): Array[Byte] = {
-    val bytes = Array[Byte](2)
+    val bytes = new Array[Byte](2)
     bytes(1) =(0x000000ff & (a)).asInstanceOf[Byte]
     bytes(0) = (0x000000ff & (a >>> 8)).asInstanceOf[Byte]
     return bytes

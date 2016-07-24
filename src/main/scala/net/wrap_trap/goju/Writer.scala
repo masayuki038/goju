@@ -1,11 +1,12 @@
 package net.wrap_trap.goju
 
-import java.io.{OutputStream, FileOutputStream, BufferedOutputStream}
+import java.io.{ByteArrayOutputStream, FileOutputStream, BufferedOutputStream, DataOutputStream}
 
 import akka.actor.{ActorRef, Props, ActorSystem, Actor}
 import akka.util.Timeout
 import net.wrap_trap.goju.element.{KeyValue, PosLen, Element}
 import net.wrap_trap.goju.samples.HelloAkka
+import net.wrap_trap.goju.Helper._
 import org.joda.time.DateTime
 
 import scala.concurrent.duration._
@@ -38,6 +39,11 @@ object Writer extends PlainRpc {
     implicit val timeout = Timeout(5 seconds)
     call(actorRef, ('count)).asInstanceOf[Int]
   }
+
+  def close(actorRef: ActorRef) = {
+    implicit val timeout = Timeout(5 seconds)
+    call(actorRef, ('close))
+  }
 }
 
 class Writer(val name: String, var state: Option[State] = None) extends PlainRpc with Actor {
@@ -53,7 +59,7 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
 
     state = Option(
       State(
-        fileWriter,
+        Option(fileWriter),
         fileFormat.length,
         0L,
         0,
@@ -90,24 +96,67 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
           case Some(s) => s.valueCount + s.tombstoneCount
         }
       }
+      case ('close) => {
+        archiveNodes
+      }
     }
   }
 
   def doOpen() = {
     val settings = Settings.getSettings
     val writeBufferSize = settings.getInt("write_buffer_size", 512 * 1024)
-    new BufferedOutputStream(new FileOutputStream(this.name), writeBufferSize)
+    new DataOutputStream(
+      new BufferedOutputStream(new FileOutputStream(this.name), writeBufferSize)
+    )
   }
 
-//  def archiveNodes() = {
-//    this.state match {
-//      case Some(s) => s.nodes match {
-//        case List() => {
-//
-//        }
-//      }
-//    }
-//  }
+  def archiveNodes(): Unit = {
+    this.state match {
+      case Some(s) => s.nodes match {
+        case List() => {
+          val bloomBin = SerDes.serializeBloom(s.bloom)
+          val rootPos = s.lastNodePos match {
+            case 0L => {
+              s.indexFile match {
+                case Some(file) => {
+                  file.writeInt(0)
+                  file.writeShort(0)
+                }
+              }
+              FIRST_BLOCK_POS
+            }
+            case _ => s.lastNodePos
+          }
+          using(new ByteArrayOutputStream) { baos =>
+            baos.write(Utils.to4Bytes(0))
+            baos.write(bloomBin)
+            baos.write(Utils.to4Bytes(bloomBin.length))
+            baos.write(Utils.to8Bytes(rootPos))
+            s.indexFile match {
+              case Some(file) => {
+                file.write(baos.toByteArray)
+                file.close
+              }
+            }
+            this.state = Option(
+              s.copy(
+                indexFile = None,
+                indexFilePos = 0
+              )
+            )
+          }
+        }
+        case List(node) if node.level > 0 && node.isInstanceOf[PosLen] => {
+          this.state = Option(s.copy(nodes = List.empty[Node]))
+          archiveNodes
+        }
+        case List(_, _*)  => {
+          flushNodeBuffer
+          archiveNodes
+        }
+      }
+    }
+  }
 
   def appendNode(level: Int, element: Element): Unit = {
     this.state match {
@@ -161,7 +210,9 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
           val orderedMembers = node.members.reverse
           val blockData = Utils.encodeIndexNodes(orderedMembers, Compress(Constants.COMPRESS_PLAIN))
           val data = Utils.to4Bytes(blockData.size) ++ Utils.to2Bytes(level) ++ blockData
-          s.indexFile.write(data)
+          s.indexFile match {
+            case Some(file) => file.write(data)
+          }
 
           val posLen = new PosLen(orderedMembers.head.key, s.indexFilePos, blockData.size + 6)
           appendNode(level + 1, posLen)
@@ -179,7 +230,7 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
 }
 
 case class Node(level: Int, members: List[Element] = List.empty, size: Int = 0)
-case class State(indexFile: OutputStream,
+case class State(indexFile: Option[DataOutputStream],
                   indexFilePos: Int,
                   lastNodePos: Long,
                   lastNodeSize: Int,

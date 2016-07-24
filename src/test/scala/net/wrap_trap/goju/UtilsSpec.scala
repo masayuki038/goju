@@ -1,5 +1,7 @@
 package net.wrap_trap.goju
 
+import java.nio.ByteBuffer
+
 import net.wrap_trap.goju.element.{PosLen, KeyValue}
 import org.joda.time.DateTime
 import org.scalatest.{FunSpec, BeforeAndAfter, Matchers, FlatSpec}
@@ -13,6 +15,27 @@ import org.scalatest.{FunSpec, BeforeAndAfter, Matchers, FlatSpec}
   * http://opensource.org/licenses/mit-license.php
   */
 class UtilsSpec extends FunSpec with Matchers with BeforeAndAfter {
+
+  describe("to8Bytes") {
+    it("should return the byte value converted from Long") {
+      Utils.to8Bytes(Long.MaxValue) should equal(ByteBuffer.allocate(8).putLong(Long.MaxValue).array())
+      Utils.to8Bytes(Long.MinValue) should equal(ByteBuffer.allocate(8).putLong(Long.MinValue).array())
+    }
+  }
+
+  describe("to4Bytes") {
+    it("should return the byte value converted from Int") {
+      Utils.to4Bytes(Int.MaxValue) should equal(ByteBuffer.allocate(4).putInt(Int.MaxValue).array())
+      Utils.to4Bytes(Int.MinValue) should equal(ByteBuffer.allocate(4).putInt(Int.MinValue).array())
+    }
+  }
+
+  describe("to2Bytes") {
+    it("should return the byte value converted from Short") {
+      Utils.to2Bytes(Short.MaxValue) should equal(ByteBuffer.allocate(2).putShort(Short.MaxValue).array())
+      Utils.to2Bytes(Short.MinValue) should equal(ByteBuffer.allocate(2).putShort(Short.MinValue).array())
+    }
+  }
 
   describe("estimateNodeSizeIncrement") {
     describe("when the value is Int") {

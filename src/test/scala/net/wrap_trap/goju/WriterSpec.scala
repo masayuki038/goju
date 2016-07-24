@@ -24,9 +24,15 @@ class WriterSpec extends TestKit(ActorSystem("test"))
     val writer = Writer.open("test")
   }
 
-  "Writer.add" should "add a KeyValu" in new Factory {
+  "Writer.add" should "add a KeyValue" in new Factory {
     Writer.add(writer, new KeyValue(Utils.toBytes("foo"), "bar"))
     Thread.sleep(5000L)
     Writer.count(writer) should be(1)
+  }
+
+  "Writer.close" should "archive nodes and bloom" in new Factory {
+    Writer.add(writer, new KeyValue(Utils.toBytes("foo"), "bar"))
+    Writer.close(writer)
+    Thread.sleep(5000L)
   }
 }
