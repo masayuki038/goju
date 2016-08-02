@@ -63,7 +63,7 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
         fileFormat.length,
         0L,
         0,
-        List.empty[Node],
+        List.empty[WriterNode],
         name,
         new Bloom(settings.getInt("size", 2048)),
         settings.getInt("block_size", NODE_SIZE),
@@ -147,7 +147,7 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
           }
         }
         case List(node) if node.level > 0 && node.isInstanceOf[PosLen] => {
-          this.state = Option(s.copy(nodes = List.empty[Node]))
+          this.state = Option(s.copy(nodes = List.empty[WriterNode]))
           archiveNodes
         }
         case List(_, _*)  => {
@@ -162,11 +162,11 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
     this.state match {
       case Some(s) => s.nodes match {
         case List() => {
-          this.state = Option(s.copy(nodes = Node(level) :: s.nodes))
+          this.state = Option(s.copy(nodes = WriterNode(level) :: s.nodes))
           appendNode(level, element)
         }
         case List(node, _*) if(level < node.level) => {
-          this.state = Option(s.copy(nodes = Node(node.level) :: s.nodes.tail))
+          this.state = Option(s.copy(nodes = WriterNode(node.level) :: s.nodes.tail))
           appendNode(level, element)
         }
         case  List(node, _*) => {
@@ -229,16 +229,15 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
   }
 }
 
-case class Node(level: Int, members: List[Element] = List.empty, size: Int = 0)
+case class WriterNode(level: Int, members: List[Element] = List.empty, size: Int = 0)
 case class State(indexFile: Option[DataOutputStream],
-                  indexFilePos: Int,
-                  lastNodePos: Long,
-                  lastNodeSize: Int,
-                  nodes: List[Node],
-                  name: String,
-                  bloom: Bloom,
-                  blockSize: Int,
-                  opts: List[Any],
-                  valueCount: Int = 0,
-                  tombstoneCount: Int = 0)
-
+                 indexFilePos: Int,
+                 lastNodePos: Long,
+                 lastNodeSize: Int,
+                 nodes: List[WriterNode],
+                 name: String,
+                 bloom: Bloom,
+                 blockSize: Int,
+                 opts: List[Any],
+                 valueCount: Int = 0,
+                 tombstoneCount: Int = 0)
