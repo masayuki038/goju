@@ -23,6 +23,10 @@ object Utils {
     str.getBytes(Charset.forName("UTF-8"))
   }
 
+  def fromBytes(bytes: Array[Byte]): String = {
+    new String(bytes, Charset.forName("UTF-8"))
+  }
+
   def to8Bytes(a: Long): Array[Byte] = {
     val bytes = new Array[Byte](8)
     bytes(7) = (0x000000ff & (a)).asInstanceOf[Byte]
