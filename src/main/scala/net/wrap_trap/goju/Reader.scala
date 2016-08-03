@@ -1,10 +1,8 @@
 package net.wrap_trap.goju
 
 import java.io._
-
 import net.wrap_trap.goju.element.Element
 
-import scala.io.Source
 
 /**
   * goju-to: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
@@ -20,7 +18,7 @@ class Reader {
     open(name, Random)
   }
 
-  def open(name: String, config: Config): Index = {
+  def open(name: String, config: FileConfig): Index = {
     config match {
       case Sequential => {
         SequentialReadIndex(
@@ -84,25 +82,25 @@ case class ReaderNode(level: Int, members: List[Element] = List.empty)
 
 trait Index {
   val name: String
-  val config: Config
+  val config: FileConfig
   val root: Option[ReaderNode]
   val bloom: Option[Bloom]
 }
 
 case class SequentialReadIndex(file: DataInputStream,
                  name: String,
-                 config: Config,
+                 config: FileConfig,
                  root: Option[ReaderNode] = None,
                  bloom: Option[Bloom] = None) extends Index
 
 case class RandomReadIndex(file: RandomAccessFile,
                                name: String,
-                               config: Config,
+                               config: FileConfig,
                                root: Option[ReaderNode] = None,
                                bloom: Option[Bloom] = None) extends Index
 
-sealed abstract class Config
-case object Sequential extends Config
-case object Folding extends Config
-case object Random extends Config
-case class Other(symbol: Symbol, value: Any) extends Config
+sealed abstract class FileConfig
+case object Sequential extends FileConfig
+case object Folding extends FileConfig
+case object Random extends FileConfig
+case class Other(symbol: Symbol, value: Any) extends FileConfig
