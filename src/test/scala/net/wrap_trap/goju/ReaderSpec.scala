@@ -19,22 +19,24 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
   with StopSystemAfterAll {
 
   "Reader.openAsRandom" should "open the file for read" in {
-    val writer = Writer.open("random_file_test")
+    val fileName = "random_file_test"
+    val writer = Writer.open(fileName)
     Writer.add(writer, new KeyValue(Utils.toBytes("foo"), "bar"))
     Writer.close(writer)
     Thread.sleep(1000L)
-    val reader = Reader.open("test")
-    reader.name should be("test")
+    val reader = Reader.open(fileName)
+    reader.name should be(fileName)
     reader.isInstanceOf[RandomReadIndex] should be(true)
   }
 
   "Reader.openAsSequential" should "open the file for read" in {
-    val writer = Writer.open("seqential_file_test")
+    val fileName = "seqential_file_test"
+    val writer = Writer.open(fileName)
     Writer.add(writer, new KeyValue(Utils.toBytes("foo"), "bar"))
     Writer.close(writer)
     Thread.sleep(1000L)
-    val reader = Reader.open("test", Sequential)
-    reader.name should be("test")
+    val reader = Reader.open(fileName, Sequential)
+    reader.name should be(fileName)
     reader.isInstanceOf[SequentialReadIndex] should be(true)
   }
 
