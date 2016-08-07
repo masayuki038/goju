@@ -1,7 +1,10 @@
 package net.wrap_trap.goju
 
 import java.io._
+import akka.actor.Actor
+import com.typesafe.scalalogging.Logger
 import net.wrap_trap.goju.element.Element
+import org.slf4j.LoggerFactory
 
 
 /**
@@ -12,7 +15,8 @@ import net.wrap_trap.goju.element.Element
   * This software is released under the MIT License.
   * http://opensource.org/licenses/mit-license.php
   */
-class Reader {
+object Reader extends PlainRpc {
+  val log = Logger(LoggerFactory.getLogger(Reader.getClass))
 
   def open(name: String): Index = {
     open(name, Random)
@@ -64,6 +68,9 @@ class Reader {
       val level = file.readShort
       val buf = new Array[Byte](len - 2)
       file.read(buf)
+      if(log.underlying.isDebugEnabled) {
+        Utils.dumpBinary(buf, "readNode#buf")
+      }
       val entryList = Utils.decodeIndexNodes(buf, Compress(Constants.COMPRESS_PLAIN))
       Option(ReaderNode(level, entryList))
     } else {
@@ -75,6 +82,12 @@ class Reader {
     val settings = Settings.getSettings
     val bufferPoolSize = settings.getInt("read_buffer_size", 524288)
     new DataInputStream(new BufferedInputStream(new FileInputStream(name), bufferPoolSize))
+  }
+}
+
+class Reader extends PlainRpc with Actor {
+  def receive = {
+    case (PlainRpcProtocol.cast) => ???
   }
 }
 

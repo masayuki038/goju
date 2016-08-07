@@ -44,11 +44,11 @@ class ElementInputStream(is: InputStream) extends AutoCloseable {
   }
 
   def readEndTag() = {
-    val ch1 = this.internal.read();
+    val ch1 = this.internal.read()
     if (ch1 < 0)
-      throw new EOFException();
-    if (ch1 != 0xff)
-      throw new IllegalStateException("endTag != 0xff")
+      throw new EOFException
+    if (ch1 != 0xFF)
+      throw new IllegalStateException("endTag != 0xFF. endTag: " + ch1)
   }
 
   override def close() = {

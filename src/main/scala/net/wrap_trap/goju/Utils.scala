@@ -5,10 +5,12 @@ import java.nio.charset.Charset
 import java.util.zip.CRC32
 
 import com.google.common.primitives.UnsignedBytes
+import com.typesafe.scalalogging.Logger
 import net.wrap_trap.goju.Constants.Key
 import net.wrap_trap.goju.element.Element
 import net.wrap_trap.goju.Helper._
 import org.joda.time.DateTime
+import org.slf4j.LoggerFactory
 
 /**
   * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
@@ -19,6 +21,8 @@ import org.joda.time.DateTime
   * http://opensource.org/licenses/mit-license.php
   */
 object Utils {
+  val log = Logger(LoggerFactory.getLogger(Utils.getClass))
+
   def toBytes(str: String): Array[Byte] = {
     str.getBytes(Charset.forName("UTF-8"))
   }
@@ -104,6 +108,15 @@ object Utils {
 
       SerDes.deserialize(body)
     }
+  }
+
+  def dumpBinary(bytes: Array[Byte], subject: String) = {
+    val s = new StringBuilder
+    for (b <- bytes) {
+      s ++= (b & 0x000000ff).toInt.toHexString
+      s += ' '
+    }
+    log.debug(s"""$subject: $s""")
   }
 
   private def getCRCValue(body: Array[Byte]): Long = {

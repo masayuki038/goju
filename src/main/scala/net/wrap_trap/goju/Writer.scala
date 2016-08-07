@@ -1,18 +1,17 @@
 package net.wrap_trap.goju
 
 import java.io.{ByteArrayOutputStream, FileOutputStream, BufferedOutputStream, DataOutputStream}
+import scala.concurrent.duration._
 
 import akka.actor.{ActorRef, Props, ActorSystem, Actor}
 import akka.util.Timeout
+import com.typesafe.scalalogging.Logger
+import org.slf4j.LoggerFactory
+
 import net.wrap_trap.goju.element.{KeyValue, PosLen, Element}
-import net.wrap_trap.goju.samples.HelloAkka
 import net.wrap_trap.goju.Helper._
-import org.joda.time.DateTime
-
-import scala.concurrent.duration._
-import scala.io.Source
-
 import net.wrap_trap.goju.Constants._
+
 
 /**
   * goju-to: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
@@ -47,6 +46,7 @@ object Writer extends PlainRpc {
 }
 
 class Writer(val name: String, var state: Option[State] = None) extends PlainRpc with Actor {
+  val log = Logger(LoggerFactory.getLogger(Writer.getClass))
 
   val NODE_SIZE = 8*1024
 
@@ -209,7 +209,11 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
 
           val orderedMembers = node.members.reverse
           val blockData = Utils.encodeIndexNodes(orderedMembers, Compress(Constants.COMPRESS_PLAIN))
-          val data = Utils.to4Bytes(blockData.size) ++ Utils.to2Bytes(level) ++ blockData
+          if(log.underlying.isDebugEnabled) {
+            Utils.dumpBinary(blockData,"flushNode#blockData" )
+          }
+          val data = Utils.to4Bytes(blockData.size + 2) ++ Utils.to2Bytes(level) ++ blockData
+
           s.indexFile match {
             case Some(file) => file.write(data)
           }
