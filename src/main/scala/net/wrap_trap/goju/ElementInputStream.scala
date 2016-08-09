@@ -14,28 +14,35 @@ import com.google.common.primitives.UnsignedInteger
   */
 class ElementInputStream(is: InputStream) extends AutoCloseable {
   val internal = new DataInputStream(is)
+  var p = 0L
 
   def read(): Int = {
+    p += 1
     this.internal.read()
   }
 
   def read(bytes: Array[Byte]): Int = {
+    p += bytes.length
     this.internal.read(bytes)
   }
 
   def readInt(): Int = {
+    p += 4
     this.internal.readInt()
   }
 
   def readTimestamp(): Long = {
+    p += 4
     UnsignedInteger.fromIntBits(this.internal.readInt()).longValue()
   }
 
   def readLong(): Long = {
+    p += 8
     this.internal.readLong()
   }
 
   def read(size: Int): Array[Byte] = {
+    p += size
     val buf = new Array[Byte](size)
     val read = this.internal.read(buf)
     if (read < size)
@@ -44,16 +51,23 @@ class ElementInputStream(is: InputStream) extends AutoCloseable {
   }
 
   def readEndTag() = {
-    val ch1 = this.internal.read()
+    val ch1 = read()
     if (ch1 < 0)
       throw new EOFException
     if (ch1 != 0xFF)
       throw new IllegalStateException("endTag != 0xFF. endTag: " + ch1)
   }
 
+  def pointer() : Long = p
+
+  def skip(n: Long) = {
+    this.internal.skip(n: Long)
+  }
+
   override def close() = {
     try {
-      this.internal.close();
+      this.internal.close()
+      p = 0L
     } catch {
       case ignore: IOException => {}
     }

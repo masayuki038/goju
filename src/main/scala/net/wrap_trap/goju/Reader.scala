@@ -85,10 +85,21 @@ object Reader extends PlainRpc {
     indexFile.delete
   }
 
-  private def buildInputStream(name: String): DataInputStream = {
+  def serialize(sequentialReadIndex: SequentialReadIndex): (SequentialReadIndex, Long) = {
+    (sequentialReadIndex, sequentialReadIndex.elementInputStream.pointer)
+  }
+
+  def deserialize(serialized: (SequentialReadIndex, Long)): Index = {
+    val (index, pos) = serialized
+    val newIndex = Reader.open(index.name, index.config)
+    newIndex.skip(pos)
+    newIndex
+  }
+
+  private def buildInputStream(name: String): ElementInputStream = {
     val settings = Settings.getSettings
     val bufferPoolSize = settings.getInt("read_buffer_size", 524288)
-    new DataInputStream(new BufferedInputStream(new FileInputStream(name), bufferPoolSize))
+    new ElementInputStream(new BufferedInputStream(new FileInputStream(name), bufferPoolSize))
   }
 }
 
@@ -115,18 +126,23 @@ trait Index {
     }
   }
 
+  def skip(n: Long): Unit
   def close(): Unit
 }
 
-case class SequentialReadIndex(dataInputStream: DataInputStream,
-                 name: String,
-                 file: File,
-                 config: FileConfig,
-                 root: Option[ReaderNode] = None,
-                 bloom: Option[Bloom] = None) extends Index {
+case class SequentialReadIndex(elementInputStream: ElementInputStream,
+                               name: String,
+                               file: File,
+                               config: FileConfig,
+                               root: Option[ReaderNode] = None,
+                               bloom: Option[Bloom] = None) extends Index {
+
+  def skip(n: Long): Unit = {
+    elementInputStream.skip(n)
+  }
 
   def close(): Unit = {
-    dataInputStream.close
+    elementInputStream.close
   }
 }
 
@@ -136,6 +152,12 @@ case class RandomReadIndex(randomAccessFile: RandomAccessFile,
                                config: FileConfig,
                                root: Option[ReaderNode] = None,
                                bloom: Option[Bloom] = None) extends Index {
+
+  def skip(n: Long): Unit = {
+    randomAccessFile.seek(n)
+  }
+
+
   def close(): Unit = {
     randomAccessFile.close
   }
