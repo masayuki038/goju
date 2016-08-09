@@ -26,19 +26,24 @@ class ElementInputStream(is: InputStream) extends AutoCloseable {
     this.internal.read(bytes)
   }
 
+  def readShort(): Short = {
+    p += 2
+    this.internal.readShort
+  }
+
   def readInt(): Int = {
     p += 4
-    this.internal.readInt()
+    this.internal.readInt
   }
 
   def readTimestamp(): Long = {
     p += 4
-    UnsignedInteger.fromIntBits(this.internal.readInt()).longValue()
+    UnsignedInteger.fromIntBits(this.internal.readInt).longValue
   }
 
   def readLong(): Long = {
     p += 8
-    this.internal.readLong()
+    this.internal.readLong
   }
 
   def read(size: Int): Array[Byte] = {
@@ -51,7 +56,7 @@ class ElementInputStream(is: InputStream) extends AutoCloseable {
   }
 
   def readEndTag() = {
-    val ch1 = read()
+    val ch1 = read
     if (ch1 < 0)
       throw new EOFException
     if (ch1 != 0xFF)
@@ -61,12 +66,12 @@ class ElementInputStream(is: InputStream) extends AutoCloseable {
   def pointer() : Long = p
 
   def skip(n: Long) = {
-    this.internal.skip(n: Long)
+    this.internal.skip(n)
   }
 
   override def close() = {
     try {
-      this.internal.close()
+      this.internal.close
       p = 0L
     } catch {
       case ignore: IOException => {}

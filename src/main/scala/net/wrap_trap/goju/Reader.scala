@@ -3,7 +3,8 @@ package net.wrap_trap.goju
 import java.io._
 import akka.actor.Actor
 import com.typesafe.scalalogging.Logger
-import net.wrap_trap.goju.element.Element
+import net.wrap_trap.goju.Helper._
+import net.wrap_trap.goju.element.{KeyValue, Element}
 import org.slf4j.LoggerFactory
 
 
@@ -94,6 +95,62 @@ object Reader extends PlainRpc {
     val newIndex = Reader.open(index.name, index.config)
     newIndex.skip(pos)
     newIndex
+  }
+
+  def fold(func: (List[Element], Element) => List[Element], acc0: List[Element], index: RandomReadIndex): List[Element] = {
+    val node = readNode(index.randomAccessFile, Constants.FIRST_BLOCK_POS)
+    fold(index.randomAccessFile, func, node, acc0)
+  }
+
+  def fold(file: RandomAccessFile, func: (List[Element], Element) => List[Element], node: Option[ReaderNode], acc0: List[Element]): List[Element] = {
+    node match {
+      case Some(n) => {
+        n.level match {
+          case 0 => {
+            val acc1 = n.members.foldLeft(acc0) { (acc, element) => func(acc, element) }
+            fold(file, func, acc1)
+          }
+          case _ => {
+            fold(file, func, acc0)
+          }
+        }
+      }
+    }
+  }
+
+  def fold(file: RandomAccessFile, func: (List[Element], Element) => List[Element], acc0: List[Element]): List[Element] = {
+    nextLeafNode(file) match {
+      case None => acc0
+      case node => fold(file, func, node, acc0)
+    }
+  }
+
+  def nextLeafNode(file: RandomAccessFile): Option[ReaderNode] = {
+    val bytes = new Array[Byte](6)
+    val read = file.read(bytes, 0, 6)
+    if(read == 6) {
+      readHeader(bytes) match {
+        case (len: Long, _) if len == 0 => None
+        case (len: Long, level: Int) if level == 0 => {
+          val buf = new Array[Byte]((len - 2).toInt) // @TODO Long to Int
+          file.read(buf)
+          val entryList = Utils.decodeIndexNodes(buf, Compress(Constants.COMPRESS_PLAIN))
+          Option(ReaderNode(level, entryList))
+        }
+        case (len: Long, level: Int) => {
+          file.seek((len - 2).toInt) // @TODO Long to Int
+          nextLeafNode(file)
+        }
+      }
+    } else {
+      None
+    }
+  }
+
+  def readHeader(bytes: Array[Byte]): (Long, Int) = {
+    using(new ElementInputStream(new ByteArrayInputStream(bytes))) { eis =>
+      (eis.readInt.toLong, eis.readShort.toInt)
+    }
   }
 
   private def buildInputStream(name: String): ElementInputStream = {
