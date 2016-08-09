@@ -1,5 +1,7 @@
 package net.wrap_trap.goju
 
+import java.io.File
+
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import net.wrap_trap.goju.element.KeyValue
@@ -18,26 +20,46 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
   with ShouldMatchers
   with StopSystemAfterAll {
 
-  "Reader.openAsRandom" should "open the file for read" in {
-    val fileName = "random_file_test"
+  trait Factory {
+    val fileName: String
     val writer = Writer.open(fileName)
     Writer.add(writer, new KeyValue(Utils.toBytes("foo"), "bar"))
     Writer.close(writer)
     Thread.sleep(1000L)
+  }
+
+  def write(fileName: String) = {
+    val writer = Writer.open(fileName)
+    Writer.add(writer, new KeyValue(Utils.toBytes("foo"), "bar"))
+    Writer.close(writer)
+    Thread.sleep(1000L)
+  }
+
+  def withWriterForRandom(testCode: (String) => Any) {
+    val fileName = "random_file_test"
+    write(fileName)
+    testCode(fileName)
+  }
+
+  def withWriterForSequential(testCode: (String) => Any) {
+    val fileName = "seqential_file_test"
+    write(fileName)
+    testCode(fileName)
+  }
+
+  "Reader.openCloseAsRandom" should "open the file for read" in withWriterForRandom { fileName =>
     val reader = Reader.open(fileName)
     reader.name should be(fileName)
     reader.isInstanceOf[RandomReadIndex] should be(true)
+    Reader.destroy(reader)
+    new File(fileName).exists should be(false)
   }
 
-  "Reader.openAsSequential" should "open the file for read" in {
-    val fileName = "seqential_file_test"
-    val writer = Writer.open(fileName)
-    Writer.add(writer, new KeyValue(Utils.toBytes("foo"), "bar"))
-    Writer.close(writer)
-    Thread.sleep(1000L)
+  "Reader.openCloseAsSequential" should "open the file for read" in withWriterForSequential { fileName =>
     val reader = Reader.open(fileName, Sequential)
     reader.name should be(fileName)
     reader.isInstanceOf[SequentialReadIndex] should be(true)
+    Reader.destroy(reader)
+    new File(fileName).exists should be(false)
   }
-
 }

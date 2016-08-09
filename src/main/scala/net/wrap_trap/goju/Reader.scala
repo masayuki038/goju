@@ -28,31 +28,33 @@ object Reader extends PlainRpc {
         SequentialReadIndex(
           buildInputStream(name),
           name,
+          new File(name),
           config
         )
       }
       case _ => {
-        val file = new RandomAccessFile(name, "r")
+        val randomAccessFile = new RandomAccessFile(name, "r")
         val fileInfo = new File(name)
         val buf = new Array[Byte](Constants.FILE_FORMAT.length)
-        file.read(buf)
+        randomAccessFile.read(buf)
         val fileFormat = Utils.fromBytes(buf)
         if(Constants.FILE_FORMAT != fileFormat) {
           throw new IllegalStateException("Invalid file format: " + fileFormat)
         }
-        file.seek(fileInfo.length - 8)
-        val rootPos = file.readLong
+        randomAccessFile.seek(fileInfo.length - 8)
+        val rootPos = randomAccessFile.readLong
 
-        file.seek(fileInfo.length - 12)
-        val bloomSize = file.readInt
+        randomAccessFile.seek(fileInfo.length - 12)
+        val bloomSize = randomAccessFile.readInt
         val bloomBuffer = new Array[Byte](bloomSize)
-        file.seek(fileInfo.length - 12 - bloomSize)
-        file.read(bloomBuffer)
+        randomAccessFile.seek(fileInfo.length - 12 - bloomSize)
+        randomAccessFile.read(bloomBuffer)
         val bloom = SerDes.deserializeBloom(bloomBuffer)
-        val node = readNode(file, rootPos)
+        val node = readNode(randomAccessFile, rootPos)
         RandomReadIndex(
-          file,
+          randomAccessFile,
           name,
+          new File(name),
           config,
           node,
           Option(bloom)
@@ -78,6 +80,11 @@ object Reader extends PlainRpc {
     }
   }
 
+  def destroy(indexFile: Index) = {
+    indexFile.close
+    indexFile.delete
+  }
+
   private def buildInputStream(name: String): DataInputStream = {
     val settings = Settings.getSettings
     val bufferPoolSize = settings.getInt("read_buffer_size", 524288)
@@ -94,23 +101,45 @@ class Reader extends PlainRpc with Actor {
 case class ReaderNode(level: Int, members: List[Element] = List.empty)
 
 trait Index {
+  val log = Logger(LoggerFactory.getLogger(this.getClass))
+
   val name: String
+  val file: File
   val config: FileConfig
   val root: Option[ReaderNode]
   val bloom: Option[Bloom]
+
+  def delete(): Unit = {
+    if(!file.delete) {
+      log.warn("Failed to delete file: " + name)
+    }
+  }
+
+  def close(): Unit
 }
 
-case class SequentialReadIndex(file: DataInputStream,
+case class SequentialReadIndex(dataInputStream: DataInputStream,
                  name: String,
+                 file: File,
                  config: FileConfig,
                  root: Option[ReaderNode] = None,
-                 bloom: Option[Bloom] = None) extends Index
+                 bloom: Option[Bloom] = None) extends Index {
 
-case class RandomReadIndex(file: RandomAccessFile,
+  def close(): Unit = {
+    dataInputStream.close
+  }
+}
+
+case class RandomReadIndex(randomAccessFile: RandomAccessFile,
                                name: String,
+                               file: File,
                                config: FileConfig,
                                root: Option[ReaderNode] = None,
-                               bloom: Option[Bloom] = None) extends Index
+                               bloom: Option[Bloom] = None) extends Index {
+  def close(): Unit = {
+    randomAccessFile.close
+  }
+}
 
 sealed abstract class FileConfig
 case object Sequential extends FileConfig
