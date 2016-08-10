@@ -110,9 +110,7 @@ object Reader extends PlainRpc {
             val acc1 = n.members.foldLeft(acc0) { (acc, element) => func(acc, element) }
             fold(file, func, acc1)
           }
-          case _ => {
-            fold(file, func, acc0)
-          }
+          case _ => fold(file, func, acc0)
         }
       }
     }
