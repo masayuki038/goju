@@ -6,7 +6,6 @@ import java.util.zip.CRC32
 
 import com.google.common.primitives.UnsignedBytes
 import com.typesafe.scalalogging.Logger
-import net.wrap_trap.goju.Constants.Key
 import net.wrap_trap.goju.element.Element
 import net.wrap_trap.goju.Helper._
 import org.joda.time.DateTime
