@@ -68,12 +68,12 @@ class Bloom(var e: Double, var n: Int, var mb: Int, var a: List[BitSet]) {
     //logger.info(String.format("mb: %d, n: %d, k: %d", this.mb, this.n, k));
   }
 
-  def add(key: Constants.Key) {
+  def add(key: Key) {
     val hashes = makeHashes(key)
     hashAdd(hashes)
   }
 
-  def member(key: Constants.Key): Boolean = {
+  def member(key: Key): Boolean = {
     hashMember(makeHashes(key))
   }
 
@@ -118,8 +118,8 @@ class Bloom(var e: Double, var n: Int, var mb: Int, var a: List[BitSet]) {
     true
   }
 
-  def makeHashes(key: Constants.Key): Int = {
-    val hashCode = util.Arrays.hashCode(key)
+  def makeHashes(key: Key): Int = {
+    val hashCode = util.Arrays.hashCode(key.bytes)
     //logger.debug(String.format("hashCode: %d", hashCode));
     hashCode
   }

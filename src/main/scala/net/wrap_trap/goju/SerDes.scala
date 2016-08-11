@@ -166,7 +166,7 @@ object SerDes {
         case _ => (None, 0)
       }
       val keyLen = eis.readInt
-      val key = eis.read(keyLen)
+      val key = Key(eis.read(keyLen))
       val readSize = SIZE_OF_ENTRY_TYPE + sizeOfTimestamp + SIZE_OF_KEYSIZE + keyLen
       val value = eis.read(body.length - readSize)
       new KeyValue(key, deserializeValue(value), timestamp)
@@ -182,7 +182,7 @@ object SerDes {
         case _ => (None, 0)
       }
       val readSize = SIZE_OF_ENTRY_TYPE + sizeOfTimestamp
-      val key = eis.read(body.length - readSize)
+      val key = Key(eis.read(body.length - readSize))
       new KeyValue(key, TOMBSTONE, timestamp)
     }
   }
@@ -194,7 +194,7 @@ object SerDes {
       val pos = eis.readLong
       val len = eis.readInt
       val readSize = SIZE_OF_ENTRY_TYPE + SIZE_OF_POS + SIZE_OF_LEN
-      val key = eis.read(body.length - readSize);
+      val key = Key(eis.read(body.length - readSize))
       new PosLen(key, pos, len)
     }
   }

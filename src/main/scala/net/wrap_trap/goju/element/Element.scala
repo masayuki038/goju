@@ -1,8 +1,6 @@
 package net.wrap_trap.goju.element
 
-import org.joda.time.DateTime
-
-import net.wrap_trap.goju.Constants.Key
+import net.wrap_trap.goju.Key
 
 /**
   * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
@@ -21,6 +19,5 @@ trait Element {
   def expired() = false
 
   def tombstoned() = false
-
 
 }

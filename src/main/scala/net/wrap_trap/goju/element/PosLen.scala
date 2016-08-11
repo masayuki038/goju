@@ -1,7 +1,7 @@
 package net.wrap_trap.goju.element
 
-import net.wrap_trap.goju.Constants.Key
-
+import net.wrap_trap.goju.Helper._
+import net.wrap_trap.goju.Key
 
 /**
   * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
@@ -11,7 +11,9 @@ import net.wrap_trap.goju.Constants.Key
   * This software is released under the MIT License.
   * http://opensource.org/licenses/mit-license.php
   */
-class PosLen(val _key: Key, val _pos: Long, _len: Int) extends Element {
+case class PosLen(val _rawKey: Array[Byte], val _pos: Long, _len: Int) extends Element {
+
+  val _key = Key(_rawKey)
 
   override def key(): Key = {
     this._key

@@ -36,4 +36,8 @@ object Helper {
       try { r3.close() } catch {case ignore: Exception => ???}
     }
   }
+
+  implicit def toBytes(key: Key): Array[Byte] = {
+    key.bytes
+  }
 }

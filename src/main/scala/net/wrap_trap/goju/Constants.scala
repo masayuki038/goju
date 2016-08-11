@@ -11,7 +11,6 @@ import java.nio.charset.Charset
   * http://opensource.org/licenses/mit-license.php
   */
 object Constants {
-  type Key = Array[Byte]
   type Value = Any
 
   val TOMBSTONE = Utils.toBytes("deleted")

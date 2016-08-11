@@ -8,7 +8,7 @@ import net.wrap_trap.goju.Helper._
 import org.joda.time.DateTime
 
 import net.wrap_trap.goju.Constants._
-import net.wrap_trap.goju.{Utils, ElementOutputStream, Constants}
+import net.wrap_trap.goju.{Utils, ElementOutputStream, Constants, Key}
 
 /**
   * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
@@ -18,7 +18,9 @@ import net.wrap_trap.goju.{Utils, ElementOutputStream, Constants}
   * This software is released under the MIT License.
   * http://opensource.org/licenses/mit-license.php
   */
-class KeyValue(val _key: Key, val _value: Value, val _timestamp: Option[DateTime] = None) extends Element {
+case class KeyValue(val _rawKey: Array[Byte], val _value: Value, val _timestamp: Option[DateTime] = None) extends Element {
+
+  val _key = Key(_rawKey)
 
   override def key(): Key = {
     this._key

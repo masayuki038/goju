@@ -13,13 +13,13 @@ import org.scalatest.{Matchers, FlatSpec}
 class BloomSpec extends FlatSpec with Matchers {
   "Bloom" should "has the key" in {
     val bloom = new Bloom(10)
-    bloom.add("test".getBytes)
-    bloom.member("test".getBytes) should equal(true)
+    bloom.add(Key("test".getBytes))
+    bloom.member(Key("test".getBytes)) should equal(true)
   }
 
   "Bloom" should "not have the key" in {
     val bloom = new Bloom(10)
-    bloom.add("test".getBytes)
-    bloom.member("test2".getBytes) should equal(false)
+    bloom.add(Key("test".getBytes))
+    bloom.member(Key("test2".getBytes)) should equal(false)
   }
 }
