@@ -4,7 +4,7 @@ import java.io._
 import akka.actor.Actor
 import com.typesafe.scalalogging.Logger
 import net.wrap_trap.goju.Helper._
-import net.wrap_trap.goju.element.{KeyValue, Element}
+import net.wrap_trap.goju.element.{Element, KeyValue, PosLen}
 import org.slf4j.LoggerFactory
 
 
@@ -62,6 +62,18 @@ object Reader extends PlainRpc {
         )
       }
     }
+  }
+
+  def readNode(file: RandomAccessFile, posLen: PosLen): Option[ReaderNode] = {
+    file.seek(posLen.pos + 4)
+    val level = file.readShort
+    val data = new Array[Byte](posLen.len - 4 - 2)
+    if(file.read(data) != data.length) {
+      Utils.dumpBinary(data, "data")
+      throw new IllegalStateException("Failed to read data.")
+    }
+    val entryList = Utils.decodeIndexNodes(data, Compress(Constants.COMPRESS_PLAIN))
+    Option(ReaderNode(level, entryList))
   }
 
   def readNode(file: RandomAccessFile, rootPos: Long): Option[ReaderNode] = {
@@ -123,6 +135,54 @@ object Reader extends PlainRpc {
     }
   }
 
+  def lookupNode(file: RandomAccessFile, k: Key, node: ReaderNode, pos: Long): Long = {
+    //    node.level match {
+    //      case 0 => pos
+    //      case _ => findStart
+    //    }
+    0L
+  }
+
+  def findStart(key: Key, members: List[Element]): Option[PosLen] = {
+    members match {
+      case List(p: PosLen, PosLen(k2, _, _), _*) if key < k2 => Option(p)
+      case List(posLen: PosLen) => Option(posLen)
+      case _ => find1(key, members)
+    }
+  }
+
+  def find1(key: Key, members: List[Element]): Option[PosLen] = {
+    members match {
+      case List(PosLen(k1, pos, len), KeyValue(k2, _, _), _*) if key > k1 && key < k2 => Option(PosLen(k1, pos, len))
+      case List(PosLen(k1, pos, len)) if key >= k1 => Option(PosLen(k1, pos, len))
+      case List(_, _) => None
+      case List(_, _*) => find1(key, members.tail)
+    }
+  }
+
+  def recursiveFind(file: RandomAccessFile, fromKey: Key, n: Int, childPos: PosLen): Option[PosLen] = {
+    n match {
+      case 1 => Option(childPos)
+      case m if m > 1 => {
+        readNode(file, childPos) match {
+          case Some(childNode) => findLeafNode(file, fromKey, childNode, childPos)
+          case None => None
+        }
+      }
+    }
+  }
+
+  def findLeafNode(file: RandomAccessFile, fromKey: Key, node: ReaderNode, posLen: PosLen): Option[PosLen] = {
+    if(node.level == 0) {
+      return Option(posLen)
+    }
+
+    findStart(fromKey, node.members) match {
+      case Some(childPosLen) => recursiveFind(file, fromKey, node.level, childPosLen)
+      case None => None
+    }
+  }
+
   def nextLeafNode(file: RandomAccessFile): Option[ReaderNode] = {
     val bytes = new Array[Byte](6)
     val read = file.read(bytes, 0, 6)
@@ -142,6 +202,62 @@ object Reader extends PlainRpc {
       }
     } else {
       None
+    }
+  }
+
+  def getValue(keyValue: KeyValue): Constants.Value = {
+    keyValue.value
+  }
+
+  def rangeFoldFromHere(func: (Element, List[Element]) => List[Element],
+                        acc0: List[Element],
+                        file: RandomAccessFile,
+                        range: KeyRange,
+                        limit: Int): List[Element] = {
+    nextLeafNode(file) match {
+      case None => acc0
+      case Some(node) => {
+        foldUntilStop((keyValue, acc0, limit) => {
+          (keyValue, acc0, limit) match {
+            case (_, acc, 0) => (Stop, acc, 0)
+            case (e, acc, _) if !range.keyInToRange(e.key) => (Stop, acc, 0)
+            case (e, acc, _) if e.tombstoned && range.keyInFromRange(e.key) => {
+              if(e.expired) {
+                (Continue, acc, limit)
+              } else {
+                (Continue, func(e, acc), limit)
+              }
+            }
+            case (e, acc, limit) if range.keyInFromRange(e.key) => {
+              if(e.expired) {
+                (Continue, acc, limit)
+              } else {
+                (Continue, func(e, acc), limit - 1)
+              }
+            }
+          }
+        }, acc0, limit, node.members) match {
+          case (Stopped, result, _) => result
+          case (Ok, acc1, limit) => rangeFoldFromHere(func, acc1, file, range, limit)
+        }
+      }
+    }
+  }
+
+  def foldUntilStop(func: (Element, List[Element], Int) => (FoldStatus, List[Element], Int),
+                    acc: List[Element],
+                    limit: Int,
+                    members: List[Element]): (FoldStatus, List[Element], Int) = {
+    foldUntilStop2(func, (Continue, acc, limit), members)
+  }
+
+  def foldUntilStop2(func: (Element, List[Element], Int) => (FoldStatus, List[Element], Int),
+                     accWithStatus: (FoldStatus, List[Element], Int),
+                     members: List[Element]): (FoldStatus, List[Element], Int) = {
+    accWithStatus match {
+      case (Stop, result, limit) => (Stopped, result, limit)
+      case (Continue, acc, limit) if members.length == 0 => (Ok, acc, limit)
+      case (Continue, acc, limit) => foldUntilStop2(func, func(members.head, acc, limit), members.tail)
     }
   }
 
@@ -223,3 +339,12 @@ case object Sequential extends FileConfig
 case object Folding extends FileConfig
 case object Random extends FileConfig
 case class Other(symbol: Symbol, value: Any) extends FileConfig
+
+sealed abstract class FoldResult
+case object Done extends FoldResult
+
+sealed abstract class FoldStatus
+case object Stop extends FoldStatus
+case object Stopped extends FoldStatus
+case object Continue extends FoldStatus
+case object Ok extends FoldStatus

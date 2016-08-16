@@ -11,9 +11,11 @@ import net.wrap_trap.goju.Key
   * This software is released under the MIT License.
   * http://opensource.org/licenses/mit-license.php
   */
-case class PosLen(val _rawKey: Array[Byte], val _pos: Long, _len: Int) extends Element {
+case class PosLen(val _key: Key, val _pos: Long, _len: Int) extends Element {
 
-  val _key = Key(_rawKey)
+  def this(_rawKey: Array[Byte], _pos: Long, _len: Int) = {
+    this(Key(_rawKey), _pos, _len)
+  }
 
   override def key(): Key = {
     this._key

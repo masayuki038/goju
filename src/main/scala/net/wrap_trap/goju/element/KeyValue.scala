@@ -18,9 +18,11 @@ import net.wrap_trap.goju.{Utils, ElementOutputStream, Constants, Key}
   * This software is released under the MIT License.
   * http://opensource.org/licenses/mit-license.php
   */
-case class KeyValue(val _rawKey: Array[Byte], val _value: Value, val _timestamp: Option[DateTime] = None) extends Element {
+case class KeyValue(val _key: Key, val _value: Value, val _timestamp: Option[DateTime]) extends Element {
 
-  val _key = Key(_rawKey)
+  def this(_rawKey: Array[Byte], _value: Value, _timestamp: Option[DateTime] = None) = {
+    this(Key(_rawKey), _value, _timestamp)
+  }
 
   override def key(): Key = {
     this._key
