@@ -1,6 +1,6 @@
 package net.wrap_trap.goju
 
-import net.wrap_trap.goju.element.{PosLen, KeyValue}
+import net.wrap_trap.goju.element.{KeyRef, KeyValue}
 import org.joda.time.DateTime
 import org.scalatest.{BeforeAndAfter, Matchers, FunSpec}
 
@@ -66,10 +66,10 @@ class SerDesSpec extends FunSpec with Matchers with BeforeAndAfter {
 
   describe("PosLen") {
     it("should be same content after serializing and deserializing") {
-      val posLen = new PosLen(Utils.toBytes("PosLen"), Long.MaxValue, Int.MaxValue)
+      val posLen = new KeyRef(Utils.toBytes("PosLen"), Long.MaxValue, Int.MaxValue)
       val ret = SerDes.deserialize(SerDes.serialize(posLen))
-      ret.isInstanceOf[PosLen] should be(true)
-      val posLen2 = ret.asInstanceOf[PosLen]
+      ret.isInstanceOf[KeyRef] should be(true)
+      val posLen2 = ret.asInstanceOf[KeyRef]
       posLen2.key should be(posLen.key)
       posLen2.pos should be(posLen.pos)
       posLen2.len should be(posLen.len)

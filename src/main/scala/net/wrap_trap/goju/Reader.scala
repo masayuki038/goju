@@ -4,7 +4,7 @@ import java.io._
 import akka.actor.Actor
 import com.typesafe.scalalogging.Logger
 import net.wrap_trap.goju.Helper._
-import net.wrap_trap.goju.element.{Element, KeyValue, PosLen}
+import net.wrap_trap.goju.element.{Element, KeyValue, KeyRef}
 import org.slf4j.LoggerFactory
 
 
@@ -64,7 +64,7 @@ object Reader extends PlainRpc {
     }
   }
 
-  def readNode(file: RandomAccessFile, posLen: PosLen): Option[ReaderNode] = {
+  def readNode(file: RandomAccessFile, posLen: KeyRef): Option[ReaderNode] = {
     file.seek(posLen.pos + 4)
     val level = file.readShort
     val data = new Array[Byte](posLen.len - 4 - 2)
@@ -143,24 +143,24 @@ object Reader extends PlainRpc {
     0L
   }
 
-  def findStart(key: Key, members: List[Element]): Option[PosLen] = {
+  def findStart(key: Key, members: List[Element]): Option[KeyRef] = {
     members match {
-      case List(p: PosLen, PosLen(k2, _, _), _*) if key < k2 => Option(p)
-      case List(posLen: PosLen) => Option(posLen)
+      case List(p: KeyRef, KeyRef(k2, _, _), _*) if key < k2 => Option(p)
+      case List(posLen: KeyRef) => Option(posLen)
       case _ => find1(key, members)
     }
   }
 
-  def find1(key: Key, members: List[Element]): Option[PosLen] = {
+  def find1(key: Key, members: List[Element]): Option[KeyRef] = {
     members match {
-      case List(PosLen(k1, pos, len), KeyValue(k2, _, _), _*) if key > k1 && key < k2 => Option(PosLen(k1, pos, len))
-      case List(PosLen(k1, pos, len)) if key >= k1 => Option(PosLen(k1, pos, len))
+      case List(KeyRef(k1, pos, len), KeyValue(k2, _, _), _*) if key > k1 && key < k2 => Option(KeyRef(k1, pos, len))
+      case List(KeyRef(k1, pos, len)) if key >= k1 => Option(KeyRef(k1, pos, len))
       case List(_, _) => None
       case List(_, _*) => find1(key, members.tail)
     }
   }
 
-  def recursiveFind(file: RandomAccessFile, fromKey: Key, n: Int, childPos: PosLen): Option[PosLen] = {
+  def recursiveFind(file: RandomAccessFile, fromKey: Key, n: Int, childPos: KeyRef): Option[KeyRef] = {
     n match {
       case 1 => Option(childPos)
       case m if m > 1 => {
@@ -172,7 +172,7 @@ object Reader extends PlainRpc {
     }
   }
 
-  def findLeafNode(file: RandomAccessFile, fromKey: Key, node: ReaderNode, posLen: PosLen): Option[PosLen] = {
+  def findLeafNode(file: RandomAccessFile, fromKey: Key, node: ReaderNode, posLen: KeyRef): Option[KeyRef] = {
     if(node.level == 0) {
       return Option(posLen)
     }

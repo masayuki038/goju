@@ -8,7 +8,7 @@ import akka.util.Timeout
 import com.typesafe.scalalogging.Logger
 import org.slf4j.LoggerFactory
 
-import net.wrap_trap.goju.element.{KeyValue, PosLen, Element}
+import net.wrap_trap.goju.element.{KeyValue, KeyRef, Element}
 import net.wrap_trap.goju.Helper._
 import net.wrap_trap.goju.Constants._
 
@@ -146,7 +146,7 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
             )
           }
         }
-        case List(node) if node.level > 0 && node.isInstanceOf[PosLen] => {
+        case List(node) if node.level > 0 && node.isInstanceOf[KeyRef] => {
           this.state = Option(s.copy(nodes = List.empty[WriterNode]))
           archiveNodes
         }
@@ -218,7 +218,7 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
             case Some(file) => file.write(data)
           }
 
-          val posLen = new PosLen(orderedMembers.head.key, s.indexFilePos, blockData.size + 6)
+          val posLen = new KeyRef(orderedMembers.head.key, s.indexFilePos, blockData.size + 6)
           appendNode(level + 1, posLen)
           val newState = s.copy(
             nodes = rest,

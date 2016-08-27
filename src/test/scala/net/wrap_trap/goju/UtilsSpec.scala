@@ -2,7 +2,7 @@ package net.wrap_trap.goju
 
 import java.nio.ByteBuffer
 
-import net.wrap_trap.goju.element.{PosLen, KeyValue}
+import net.wrap_trap.goju.element.{KeyRef, KeyValue}
 import org.joda.time.DateTime
 import org.scalatest.{FunSpec, BeforeAndAfter, Matchers, FlatSpec}
 
@@ -81,10 +81,10 @@ class UtilsSpec extends FunSpec with Matchers with BeforeAndAfter {
     }
 
     it("should encode a PosLen") {
-      val posLen = new PosLen(Utils.toBytes("hoge"), Long.MaxValue, Int.MaxValue)
+      val posLen = new KeyRef(Utils.toBytes("hoge"), Long.MaxValue, Int.MaxValue)
       val ret = Utils.decodeIndexNode(Utils.encodeIndexNode(posLen))
-      ret.isInstanceOf[PosLen] should be(true)
-      assertPosLen(ret.asInstanceOf[PosLen], posLen)
+      ret.isInstanceOf[KeyRef] should be(true)
+      assertPosLen(ret.asInstanceOf[KeyRef], posLen)
     }
   }
 
@@ -95,7 +95,7 @@ class UtilsSpec extends FunSpec with Matchers with BeforeAndAfter {
 
       val kv = new KeyValue(Utils.toBytes("hoge"), "test", Option(now))
       val tombstoned = new KeyValue(Utils.toBytes("hoge"), Constants.TOMBSTONE, Option(now))
-      val posLen = new PosLen(Utils.toBytes("hoge"), Long.MaxValue, Int.MaxValue)
+      val posLen = new KeyRef(Utils.toBytes("hoge"), Long.MaxValue, Int.MaxValue)
       val target = List(kv, tombstoned, posLen)
       val packed = Utils.encodeIndexNodes(target, compress)
       val unpacked = Utils.decodeIndexNodes(packed, compress)
@@ -106,8 +106,8 @@ class UtilsSpec extends FunSpec with Matchers with BeforeAndAfter {
       unpacked(1).isInstanceOf[KeyValue] should be(true)
       assertTombstoned(unpacked(1).asInstanceOf[KeyValue], tombstoned, now)
 
-      unpacked(2).isInstanceOf[PosLen] should be(true)
-      assertPosLen(unpacked(2).asInstanceOf[PosLen], posLen)
+      unpacked(2).isInstanceOf[KeyRef] should be(true)
+      assertPosLen(unpacked(2).asInstanceOf[KeyRef], posLen)
     }
   }
 
@@ -123,7 +123,7 @@ class UtilsSpec extends FunSpec with Matchers with BeforeAndAfter {
     target.timestamp().get.getMillis should be(now.getMillis / 1000L * 1000L)
   }
 
-  def assertPosLen(target: PosLen, expected: PosLen) = {
+  def assertPosLen(target: KeyRef, expected: KeyRef) = {
     target.key should be(expected.key)
     target.pos should be(expected.pos)
     target.len should be(expected.len)

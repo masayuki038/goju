@@ -7,7 +7,7 @@ import java.util.zip.{GZIPOutputStream, GZIPInputStream}
 import msgpack4z._
 import net.wrap_trap.goju.Constants._
 import net.wrap_trap.goju.Helper._
-import net.wrap_trap.goju.element.{PosLen, KeyValue, Element}
+import net.wrap_trap.goju.element.{KeyRef, KeyValue, Element}
 import org.joda.time.DateTime
 
 /**
@@ -23,7 +23,7 @@ object SerDes {
   def serialize(entry: Element): Array[Byte] = {
     entry match {
       case kv: KeyValue => serialize(kv)
-      case posLen: PosLen => serialize(posLen)
+      case posLen: KeyRef => serialize(posLen)
     }
   }
 
@@ -132,7 +132,7 @@ object SerDes {
     }
   }
 
-  private def serialize(posLen: PosLen): Array[Byte] = {
+  private def serialize(posLen: KeyRef): Array[Byte] = {
     val baos = new ByteArrayOutputStream
     using(new ElementOutputStream(baos)) { eos =>
       eos.writeByte(TAG_POSLEN)
@@ -187,7 +187,7 @@ object SerDes {
     }
   }
 
-  private def deserializePosLen(body: Array[Byte]): PosLen = {
+  private def deserializePosLen(body: Array[Byte]): KeyRef = {
     val bais = new ByteArrayInputStream(body)
     using(new ElementInputStream(bais)) { eis =>
       val _ = eis.read
@@ -195,7 +195,7 @@ object SerDes {
       val len = eis.readInt
       val readSize = SIZE_OF_ENTRY_TYPE + SIZE_OF_POS + SIZE_OF_LEN
       val key = Key(eis.read(body.length - readSize))
-      new PosLen(key, pos, len)
+      new KeyRef(key, pos, len)
     }
   }
 
