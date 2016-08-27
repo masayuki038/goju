@@ -51,7 +51,7 @@ object Reader extends PlainRpc {
         randomAccessFile.seek(fileInfo.length - 12 - bloomSize)
         randomAccessFile.read(bloomBuffer)
         val bloom = SerDes.deserializeBloom(bloomBuffer)
-        val node = readNode(randomAccessFile, rootPos)
+        val node = readNode(randomAccessFile, PosLen(rootPos))
         RandomReadIndex(
           randomAccessFile,
           name,
@@ -64,32 +64,35 @@ object Reader extends PlainRpc {
     }
   }
 
-  def readNode(file: RandomAccessFile, posLen: KeyRef): Option[ReaderNode] = {
-    file.seek(posLen.pos + 4)
-    val level = file.readShort
-    val data = new Array[Byte](posLen.len - 4 - 2)
-    if(file.read(data) != data.length) {
-      Utils.dumpBinary(data, "data")
-      throw new IllegalStateException("Failed to read data.")
-    }
-    val entryList = Utils.decodeIndexNodes(data, Compress(Constants.COMPRESS_PLAIN))
-    Option(ReaderNode(level, entryList))
-  }
-
-  def readNode(file: RandomAccessFile, rootPos: Long): Option[ReaderNode] = {
-    file.seek(rootPos)
-    val len = file.readInt
-    if(len != 0) {
-      val level = file.readShort
-      val buf = new Array[Byte](len - 2)
-      file.read(buf)
-      if(log.underlying.isDebugEnabled) {
-        Utils.dumpBinary(buf, "readNode#buf")
+  def readNode(file: RandomAccessFile, posLen: PosLen): Option[ReaderNode] = {
+    posLen match {
+      case PosLen(pos, Some(len)) => {
+        file.seek(pos + 4)
+        val level = file.readShort
+        val data = new Array[Byte](len - 4 - 2)
+        if(file.read(data) != data.length) {
+          Utils.dumpBinary(data, "data")
+          throw new IllegalStateException("Failed to read data.")
+        }
+        val entryList = Utils.decodeIndexNodes(data, Compress(Constants.COMPRESS_PLAIN))
+        Option(ReaderNode(level, entryList))
       }
-      val entryList = Utils.decodeIndexNodes(buf, Compress(Constants.COMPRESS_PLAIN))
-      Option(ReaderNode(level, entryList))
-    } else {
-      None
+      case PosLen(rootPos, _) => {
+        file.seek(rootPos)
+        val len = file.readInt
+        if(len != 0) {
+          val level = file.readShort
+          val buf = new Array[Byte](len - 2)
+          file.read(buf)
+          if(log.underlying.isDebugEnabled) {
+            Utils.dumpBinary(buf, "readNode#buf")
+          }
+          val entryList = Utils.decodeIndexNodes(buf, Compress(Constants.COMPRESS_PLAIN))
+          Option(ReaderNode(level, entryList))
+        } else {
+          None
+        }
+      }
     }
   }
 
@@ -110,7 +113,7 @@ object Reader extends PlainRpc {
   }
 
   def fold(func: (List[Element], Element) => List[Element], acc0: List[Element], index: RandomReadIndex): List[Element] = {
-    val node = readNode(index.randomAccessFile, Constants.FIRST_BLOCK_POS)
+    val node = readNode(index.randomAccessFile, PosLen(Constants.FIRST_BLOCK_POS))
     fold(index.randomAccessFile, func, node, acc0)
   }
 
@@ -143,24 +146,24 @@ object Reader extends PlainRpc {
     0L
   }
 
-  def findStart(key: Key, members: List[Element]): Option[KeyRef] = {
+  def findStart(key: Key, members: List[Element]): Option[PosLen] = {
     members match {
-      case List(p: KeyRef, KeyRef(k2, _, _), _*) if key < k2 => Option(p)
-      case List(posLen: KeyRef) => Option(posLen)
+      case List(p: KeyRef, KeyRef(k2, _, _), _*) if key < k2 => Option(PosLen(p.pos, Option(p.len)))
+      case List(keyRef: KeyRef) => Option(PosLen(keyRef.pos, Option(keyRef.len)))
       case _ => find1(key, members)
     }
   }
 
-  def find1(key: Key, members: List[Element]): Option[KeyRef] = {
+  def find1(key: Key, members: List[Element]): Option[PosLen] = {
     members match {
-      case List(KeyRef(k1, pos, len), KeyValue(k2, _, _), _*) if key > k1 && key < k2 => Option(KeyRef(k1, pos, len))
-      case List(KeyRef(k1, pos, len)) if key >= k1 => Option(KeyRef(k1, pos, len))
+      case List(KeyRef(k1, pos, len), KeyValue(k2, _, _), _*) if key > k1 && key < k2 => Option(PosLen(pos, Option(len)))
+      case List(KeyRef(k1, pos, len)) if key >= k1 => Option(PosLen(pos, Option(len)))
       case List(_, _) => None
       case List(_, _*) => find1(key, members.tail)
     }
   }
 
-  def recursiveFind(file: RandomAccessFile, fromKey: Key, n: Int, childPos: KeyRef): Option[KeyRef] = {
+  def recursiveFind(file: RandomAccessFile, fromKey: Key, n: Int, childPos: PosLen): Option[PosLen] = {
     n match {
       case 1 => Option(childPos)
       case m if m > 1 => {
@@ -172,7 +175,7 @@ object Reader extends PlainRpc {
     }
   }
 
-  def findLeafNode(file: RandomAccessFile, fromKey: Key, node: ReaderNode, posLen: KeyRef): Option[KeyRef] = {
+  def findLeafNode(file: RandomAccessFile, fromKey: Key, node: ReaderNode, posLen: PosLen): Option[PosLen] = {
     if(node.level == 0) {
       return Option(posLen)
     }
@@ -207,6 +210,37 @@ object Reader extends PlainRpc {
 
   def getValue(keyValue: KeyValue): Constants.Value = {
     keyValue.value
+  }
+
+  def rangeFold(func: (Element, List[Element]) => List[Element],
+                acc0: List[Element],
+                file: RandomAccessFile,
+                root: ReaderNode,
+                range: KeyRange
+               ): List[Element] = {
+    range.fromKey <= firstKey(root) match {
+      case true => {
+        file.seek(Constants.FIRST_BLOCK_POS)
+        rangeFoldFromHere(func, acc0, file, range, range.limit)
+      }
+      case false => {
+        findLeafNode(file, range.fromKey, root, PosLen(Constants.FIRST_BLOCK_POS)) match {
+          case Some(posLen) => {
+            file.seek(posLen.pos)
+            rangeFoldFromHere(func, acc0, file, range, range.limit)
+          }
+          case _ => {
+            acc0
+          }
+        }
+      }
+    }
+  }
+
+  def firstKey(node: ReaderNode): Key = {
+    foldUntilStop((keyValue, _, _) => (Stop, List(keyValue), 0), List.empty[Element], 1, node.members) match {
+      case (Stopped, List(KeyValue(k: Key, _, _)), _) => k
+    }
   }
 
   def rangeFoldFromHere(func: (Element, List[Element]) => List[Element],
