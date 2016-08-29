@@ -28,26 +28,26 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
     Thread.sleep(1000L)
   }
 
-  def write(fileName: String) = {
+  private def write(fileName: String) = {
     val writer = Writer.open(fileName)
     Writer.add(writer, new KeyValue(Utils.toBytes("foo"), "bar"))
     Writer.close(writer)
     Thread.sleep(1000L)
   }
 
-  def withWriterForRandom(testCode: (String) => Any) {
+  def writtenByRandom(testCode: (String) => Any) {
     val fileName = "random_file_test"
     write(fileName)
     testCode(fileName)
   }
 
-  def withWriterForSequential(testCode: (String) => Any) {
+  def writtenBySequential(testCode: (String) => Any) {
     val fileName = "seqential_file_test"
     write(fileName)
     testCode(fileName)
   }
 
-  "Reader.openCloseAsRandom" should "open the file for read" in withWriterForRandom { fileName =>
+  "Reader.openCloseAsRandom" should "open the file for read" in writtenByRandom { fileName =>
     val reader = Reader.open(fileName)
     reader.name should be(fileName)
     reader.isInstanceOf[RandomReadIndex] should be(true)
@@ -55,7 +55,7 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
     new File(fileName).exists should be(false)
   }
 
-  "Reader.openCloseAsSequential" should "open the file for read" in withWriterForSequential { fileName =>
+  "Reader.openCloseAsSequential" should "open the file for read" in writtenBySequential { fileName =>
     val reader = Reader.open(fileName, Sequential)
     reader.name should be(fileName)
     reader.isInstanceOf[SequentialReadIndex] should be(true)
