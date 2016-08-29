@@ -3,9 +3,11 @@ package net.wrap_trap.goju
 import java.io._
 import akka.actor.Actor
 import com.typesafe.scalalogging.Logger
-import net.wrap_trap.goju.Helper._
-import net.wrap_trap.goju.element.{Element, KeyValue, KeyRef}
+import org.joda.time.DateTime
 import org.slf4j.LoggerFactory
+import net.wrap_trap.goju.Constants._
+import net.wrap_trap.goju.element.{Element, KeyValue, KeyRef}
+import net.wrap_trap.goju.Helper._
 
 
 /**
@@ -64,7 +66,7 @@ object Reader extends PlainRpc {
     }
   }
 
-  def readNode(file: RandomAccessFile, posLen: PosLen): Option[ReaderNode] = {
+  private def readNode(file: RandomAccessFile, posLen: PosLen): Option[ReaderNode] = {
     posLen match {
       case PosLen(pos, Some(len)) => {
         file.seek(pos + 4)
@@ -138,15 +140,52 @@ object Reader extends PlainRpc {
     }
   }
 
-  def lookupNode(file: RandomAccessFile, k: Key, node: ReaderNode, pos: Long): Long = {
-    //    node.level match {
-    //      case 0 => pos
-    //      case _ => findStart
-    //    }
-    0L
+  def lookup(index: RandomReadIndex, key: Key): Option[Value] = {
+    index.bloom.contains(key.bytes) match {
+      case true => {
+        lookupInNode(index.randomAccessFile, index.root.get, key) match {
+          case e:KeyValue => {
+            if(e.tombstoned || e.expired) {
+              None
+            } else {
+              Option(e.value)
+            }
+          }
+          case None => None
+        }
+      }
+      case _ => None
+    }
   }
 
-  def findStart(key: Key, members: List[Element]): Option[PosLen] = {
+  private def lookupInNode(file: RandomAccessFile, root: ReaderNode, key: Key): Option[Element] = {
+    find1(key, root.members) match {
+      case Some(posLen) => {
+        readNode(file, posLen) match {
+          case Some(node) => lookupInNode2(file, node, key)
+        }
+      }
+      case None => None
+    }
+  }
+
+  private def lookupInNode2(file: RandomAccessFile, node: ReaderNode, key: Key): Option[Element] = {
+    node.level match {
+      case 0 => {
+        node.members.find(e => e.key == key)
+      }
+      case _ => find1(key, node.members) match {
+        case Some(posLen) => {
+          readNode(file, posLen) match {
+            case Some(n) => lookupInNode2(file, n, key)
+          }
+        }
+        case None => None
+      }
+    }
+  }
+
+  private def findStart(key: Key, members: List[Element]): Option[PosLen] = {
     members match {
       case List(p: KeyRef, KeyRef(k2, _, _), _*) if key < k2 => Option(PosLen(p.pos, Option(p.len)))
       case List(keyRef: KeyRef) => Option(PosLen(keyRef.pos, Option(keyRef.len)))
@@ -154,7 +193,7 @@ object Reader extends PlainRpc {
     }
   }
 
-  def find1(key: Key, members: List[Element]): Option[PosLen] = {
+  private  def find1(key: Key, members: List[Element]): Option[PosLen] = {
     members match {
       case List(KeyRef(k1, pos, len), KeyValue(k2, _, _), _*) if key > k1 && key < k2 => Option(PosLen(pos, Option(len)))
       case List(KeyRef(k1, pos, len)) if key >= k1 => Option(PosLen(pos, Option(len)))
@@ -163,7 +202,7 @@ object Reader extends PlainRpc {
     }
   }
 
-  def recursiveFind(file: RandomAccessFile, fromKey: Key, n: Int, childPos: PosLen): Option[PosLen] = {
+  private def recursiveFind(file: RandomAccessFile, fromKey: Key, n: Int, childPos: PosLen): Option[PosLen] = {
     n match {
       case 1 => Option(childPos)
       case m if m > 1 => {
@@ -175,7 +214,7 @@ object Reader extends PlainRpc {
     }
   }
 
-  def findLeafNode(file: RandomAccessFile, fromKey: Key, node: ReaderNode, posLen: PosLen): Option[PosLen] = {
+  private def findLeafNode(file: RandomAccessFile, fromKey: Key, node: ReaderNode, posLen: PosLen): Option[PosLen] = {
     if(node.level == 0) {
       return Option(posLen)
     }
@@ -186,7 +225,7 @@ object Reader extends PlainRpc {
     }
   }
 
-  def nextLeafNode(file: RandomAccessFile): Option[ReaderNode] = {
+  private def nextLeafNode(file: RandomAccessFile): Option[ReaderNode] = {
     val bytes = new Array[Byte](6)
     val read = file.read(bytes, 0, 6)
     if(read == 6) {
@@ -206,10 +245,6 @@ object Reader extends PlainRpc {
     } else {
       None
     }
-  }
-
-  def getValue(keyValue: KeyValue): Constants.Value = {
-    keyValue.value
   }
 
   def rangeFold(func: (Element, List[Element]) => List[Element],
@@ -237,9 +272,9 @@ object Reader extends PlainRpc {
     }
   }
 
-  def firstKey(node: ReaderNode): Key = {
+  private def firstKey(node: ReaderNode): Key = {
     foldUntilStop((keyValue, _, _) => (Stop, List(keyValue), 0), List.empty[Element], 1, node.members) match {
-      case (Stopped, List(KeyValue(k: Key, _, _)), _) => k
+      case (Stopped, List(KeyValue(k: Key, _, _), _*), _) => k
     }
   }
 
@@ -278,14 +313,14 @@ object Reader extends PlainRpc {
     }
   }
 
-  def foldUntilStop(func: (Element, List[Element], Int) => (FoldStatus, List[Element], Int),
+  private def foldUntilStop(func: (Element, List[Element], Int) => (FoldStatus, List[Element], Int),
                     acc: List[Element],
                     limit: Int,
                     members: List[Element]): (FoldStatus, List[Element], Int) = {
     foldUntilStop2(func, (Continue, acc, limit), members)
   }
 
-  def foldUntilStop2(func: (Element, List[Element], Int) => (FoldStatus, List[Element], Int),
+  private def foldUntilStop2(func: (Element, List[Element], Int) => (FoldStatus, List[Element], Int),
                      accWithStatus: (FoldStatus, List[Element], Int),
                      members: List[Element]): (FoldStatus, List[Element], Int) = {
     accWithStatus match {
@@ -295,7 +330,7 @@ object Reader extends PlainRpc {
     }
   }
 
-  def readHeader(bytes: Array[Byte]): (Long, Int) = {
+  private def readHeader(bytes: Array[Byte]): (Long, Int) = {
     using(new ElementInputStream(new ByteArrayInputStream(bytes))) { eis =>
       (eis.readInt.toLong, eis.readShort.toInt)
     }
