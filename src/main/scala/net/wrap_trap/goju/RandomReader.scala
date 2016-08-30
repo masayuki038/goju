@@ -68,11 +68,12 @@ class RandomReader(val name: String) extends Reader {
     }
   }
 
-  def lookup(key: Key): Option[Value] = {
+  def lookup(bytes: Array[Byte]): Option[Value] = {
+    val key = Key(bytes)
     this.bloom.member(key) match {
       case true => {
         lookupInNode(key) match {
-          case e:KeyValue => {
+          case Some(e:KeyValue) => {
             if(e.tombstoned || e.expired) {
               None
             } else {
@@ -86,10 +87,10 @@ class RandomReader(val name: String) extends Reader {
     }
   }
 
-  def rangeFold(func: (Element, List[Element]) => List[Element],
-                acc0: List[Element],
+  def rangeFold(func: (Element, List[Value]) => List[Value],
+                acc0: List[Value],
                 range: KeyRange
-               ): List[Element] = {
+               ): List[Value] = {
     range.fromKey <= firstKey(this.root.get) match {
       case true => {
         this.randomAccessFile.seek(Constants.FIRST_BLOCK_POS)
@@ -109,10 +110,10 @@ class RandomReader(val name: String) extends Reader {
     }
   }
 
-  def rangeFoldFromHere(func: (Element, List[Element]) => List[Element],
-                        acc0: List[Element],
+  def rangeFoldFromHere(func: (Element, List[Value]) => List[Value],
+                        acc0: List[Value],
                         range: KeyRange,
-                        limit: Int): List[Element] = {
+                        limit: Int): List[Value] = {
     nextLeafNode() match {
       case None => acc0
       case Some(node) => {
@@ -133,6 +134,9 @@ class RandomReader(val name: String) extends Reader {
               } else {
                 (Continue, func(e, acc), limit - 1)
               }
+            }
+            case (e, acc, limit) => {
+              (Continue, acc, limit)
             }
           }
         }, acc0, limit, node.members) match {
@@ -176,13 +180,19 @@ class RandomReader(val name: String) extends Reader {
   }
 
   private def lookupInNode(key: Key): Option[Element] = {
-    find1(key, this.root.get.members) match {
-      case Some(posLen) => {
-        readNode(posLen) match {
-          case Some(node) => lookupInNode2(node, key)
+    val node = this.root.get
+    node.level match {
+      case 0 => findInLeaf(key, node.members)
+      case _ => {
+        find1(key, node.members) match {
+          case Some(posLen) => {
+            readNode(posLen) match {
+              case Some(node) => lookupInNode2(node, key)
+            }
+          }
+          case None => None
         }
       }
-      case None => None
     }
   }
 
@@ -264,22 +274,26 @@ class RandomReader(val name: String) extends Reader {
     }
   }
 
+  private def findInLeaf(key: Key, members: List[Element]): Option[Element] = {
+    members.find(p => p.key == key)
+  }
+
   private def firstKey(node: ReaderNode): Key = {
     foldUntilStop((keyValue, _, _) => (Stop, List(keyValue), 0), List.empty[Element], 1, node.members) match {
       case (Stopped, List(KeyValue(k: Key, _, _), _*), _) => k
     }
   }
 
-  private def foldUntilStop(func: (Element, List[Element], Int) => (FoldStatus, List[Element], Int),
-                            acc: List[Element],
+  private def foldUntilStop(func: (Element, List[Value], Int) => (FoldStatus, List[Value], Int),
+                            acc: List[Value],
                             limit: Int,
-                            members: List[Element]): (FoldStatus, List[Element], Int) = {
+                            members: List[Element]): (FoldStatus, List[Value], Int) = {
     foldUntilStop2(func, (Continue, acc, limit), members)
   }
 
-  private def foldUntilStop2(func: (Element, List[Element], Int) => (FoldStatus, List[Element], Int),
-                             accWithStatus: (FoldStatus, List[Element], Int),
-                             members: List[Element]): (FoldStatus, List[Element], Int) = {
+  private def foldUntilStop2(func: (Element, List[Value], Int) => (FoldStatus, List[Value], Int),
+                             accWithStatus: (FoldStatus, List[Value], Int),
+                             members: List[Element]): (FoldStatus, List[Value], Int) = {
     accWithStatus match {
       case (Stop, result, limit) => (Stopped, result, limit)
       case (Continue, acc, limit) if members.length == 0 => (Ok, acc, limit)

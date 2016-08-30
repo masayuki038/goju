@@ -23,9 +23,9 @@ case class KeyRange(val fromKey: Key,
 
   def keyInToRange(thatKey: Key): Boolean = {
     if(toInclude) {
-      thatKey >= toKey
+      toKey >= thatKey
     } else {
-      thatKey > toKey
+      toKey > thatKey
     }
   }
 }
