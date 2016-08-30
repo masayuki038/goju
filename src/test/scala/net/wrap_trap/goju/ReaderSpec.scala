@@ -31,6 +31,7 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
   private def write(fileName: String) = {
     val writer = Writer.open(fileName)
     Writer.add(writer, new KeyValue(Utils.toBytes("foo"), "bar"))
+    Writer.add(writer, new KeyValue(Utils.toBytes("hoge"), "hogehoge"))
     Writer.close(writer)
     Thread.sleep(1000L)
   }

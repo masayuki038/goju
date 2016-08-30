@@ -83,7 +83,8 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
     msg match {
       case ('add, kv: KeyValue) => {
         if(!kv.expired) {
-          appendNode(0, kv)
+          val newState = appendNode(0, kv, this.state.get)
+          this.state = Option(newState)
         }
       }
     }
@@ -97,7 +98,8 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
         }
       }
       case ('close) => {
-        archiveNodes
+        val newState = archiveNodes(this.state.get)
+        this.state = Option(newState)
       }
     }
   }
@@ -110,124 +112,121 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
     )
   }
 
-  def archiveNodes(): Unit = {
-    this.state match {
-      case Some(s) => s.nodes match {
-        case List() => {
-          val bloomBin = SerDes.serializeBloom(s.bloom)
-          val rootPos = s.lastNodePos match {
-            case 0L => {
-              s.indexFile match {
-                case Some(file) => {
-                  file.writeInt(0)
-                  file.writeShort(0)
-                }
-              }
-              FIRST_BLOCK_POS
-            }
-            case _ => s.lastNodePos
-          }
-          using(new ByteArrayOutputStream) { baos =>
-            baos.write(Utils.to4Bytes(0))
-            baos.write(bloomBin)
-            baos.write(Utils.to4Bytes(bloomBin.length))
-            baos.write(Utils.to8Bytes(rootPos))
+  def archiveNodes(s: State): State = {
+    s.nodes match {
+      case List() => {
+        val bloomBin = SerDes.serializeBloom(s.bloom)
+        val rootPos = s.lastNodePos match {
+          case 0L => {
             s.indexFile match {
               case Some(file) => {
-                file.write(baos.toByteArray)
-                file.close
+                file.writeInt(0)
+                file.writeShort(0)
               }
             }
-            this.state = Option(
-              s.copy(
-                indexFile = None,
-                indexFilePos = 0
-              )
-            )
+            FIRST_BLOCK_POS
           }
+          case _ => s.lastNodePos
         }
-        case List(node) if node.level > 0 && node.isInstanceOf[KeyRef] => {
-          this.state = Option(s.copy(nodes = List.empty[WriterNode]))
-          archiveNodes
-        }
-        case List(_, _*)  => {
-          flushNodeBuffer
-          archiveNodes
-        }
-      }
-    }
-  }
-
-  def appendNode(level: Int, element: Element): Unit = {
-    this.state match {
-      case Some(s) => s.nodes match {
-        case List() => {
-          this.state = Option(s.copy(nodes = WriterNode(level) :: s.nodes))
-          appendNode(level, element)
-        }
-        case List(node, _*) if(level < node.level) => {
-          this.state = Option(s.copy(nodes = WriterNode(node.level) :: s.nodes.tail))
-          appendNode(level, element)
-        }
-        case  List(node, _*) => {
-          node.members match {
-            case List() => {
-              // do nothing
-            }
-            case List(member, _*) => {
-              if(Utils.compareBytes(element.key(), member.key()) < 0) {
-                throw new IllegalStateException("key < prevKey");
-              }
-            }
-          }
-          val newSize = node.size + element.estimateNodeSizeIncrement
-          s.bloom.add(element.key())
-          val (tc1, vc1) = node.level match {
-            case 0 => element.expired() match {
-              case true => (s.tombstoneCount + 1, s.valueCount)
-              case _ => (s.tombstoneCount, s.valueCount + 1)
-            }
-            case _ => (s.tombstoneCount, s.valueCount)
-          }
-          val currentNode = node.copy(members = element :: node.members, size = newSize)
-          val newState = s.copy(nodes = currentNode :: s.nodes.tail, valueCount = vc1, tombstoneCount = tc1)
-          this.state = Option(newState)
-
-          if(newSize >= newState.blockSize) {
-            flushNodeBuffer
-          }
-        }
-      }
-    }
-  }
-
-  def flushNodeBuffer() = {
-    this.state match {
-      case Some(s) => s.nodes match {
-        case  node::rest => {
-          val level = node.level
-
-          val orderedMembers = node.members.reverse
-          val blockData = Utils.encodeIndexNodes(orderedMembers, Compress(Constants.COMPRESS_PLAIN))
-          if(log.underlying.isDebugEnabled) {
-            Utils.dumpBinary(blockData,"flushNode#blockData" )
-          }
-          val data = Utils.to4Bytes(blockData.size + 2) ++ Utils.to2Bytes(level) ++ blockData
-
+        using(new ByteArrayOutputStream) { baos =>
+          baos.write(Utils.to4Bytes(0))
+          baos.write(bloomBin)
+          baos.write(Utils.to4Bytes(bloomBin.length))
+          baos.write(Utils.to8Bytes(rootPos))
           s.indexFile match {
-            case Some(file) => file.write(data)
+            case Some(file) => {
+              file.write(baos.toByteArray)
+              file.close
+            }
           }
-
-          val posLen = new KeyRef(orderedMembers.head.key, s.indexFilePos, blockData.size + 6)
-          appendNode(level + 1, posLen)
-          val newState = s.copy(
-            nodes = rest,
-            indexFilePos = s.indexFilePos + data.size,
-            lastNodePos = s.indexFilePos,
-            lastNodeSize = data.size
+          s.copy(
+            indexFile = None,
+            indexFilePos = 0
           )
-          this.state = Option(newState)
         }
+      }
+      case List(node) if node.level > 0 && node.members.size == 1 && node.members.head.isInstanceOf[KeyRef] => {
+        archiveNodes(s.copy(nodes = List.empty[WriterNode]))
+      }
+      case List(_, _*)  => {
+        val newState = flushNodeBuffer(s)
+        archiveNodes(newState)
+      }
+    }
+  }
+
+  def appendNode(level: Int, element: Element, s: State): State = {
+    s.nodes match {
+      case List() => {
+        val newState = s.copy(nodes = WriterNode(level) :: s.nodes)
+        appendNode(level, element, newState)
+      }
+      case List(node, _*) if(level < node.level) => {
+        val newState = s.copy(nodes = WriterNode(node.level) :: s.nodes.tail)
+        appendNode(level, element, newState)
+      }
+      case  List(node, _*) => {
+        node.members match {
+          case List() => {
+            // do nothing
+          }
+          case List(member, _*) => {
+            if(Utils.compareBytes(element.key(), member.key()) < 0) {
+              Utils.dumpBinary(element.key.bytes, "element.key()")
+              Utils.dumpBinary(member.key.bytes, "member.key()")
+              throw new IllegalStateException(s"""element.key < member.key""");
+            }
+          }
+        }
+        val newSize = node.size + element.estimateNodeSizeIncrement
+        s.bloom.add(element.key())
+        val (tc1, vc1) = node.level match {
+          case 0 => element.expired() match {
+            case true => (s.tombstoneCount + 1, s.valueCount)
+            case _ => (s.tombstoneCount, s.valueCount + 1)
+          }
+          case _ => (s.tombstoneCount, s.valueCount)
+        }
+        val currentNode = node.copy(members = element :: node.members, size = newSize)
+        val newState = s.copy(
+          nodes = currentNode :: s.nodes.tail,
+          valueCount = vc1,
+          tombstoneCount = tc1
+        )
+
+        if(newSize >= newState.blockSize) {
+          flushNodeBuffer(s)
+        } else {
+          newState
+        }
+      }
+    }
+  }
+
+  def flushNodeBuffer(s: State): State = {
+    s.nodes match {
+      case  node::rest => {
+        val level = node.level
+
+        val orderedMembers = node.members.reverse
+        val blockData = Utils.encodeIndexNodes(orderedMembers, Compress(Constants.COMPRESS_PLAIN))
+        if(log.underlying.isDebugEnabled) {
+          Utils.dumpBinary(blockData,"flushNode#blockData" )
+        }
+        val data = Utils.to4Bytes(blockData.size + 2) ++ Utils.to2Bytes(level) ++ blockData
+
+        s.indexFile match {
+          case Some(file) => file.write(data)
+        }
+
+        val posLen = new KeyRef(orderedMembers.head.key, s.indexFilePos, blockData.size + 6)
+        val newState = s.copy(
+          nodes = rest,
+          indexFilePos = s.indexFilePos + data.size,
+          lastNodePos = s.indexFilePos,
+          lastNodeSize = data.size
+        )
+        appendNode(level + 1, posLen, newState)
       }
     }
   }
