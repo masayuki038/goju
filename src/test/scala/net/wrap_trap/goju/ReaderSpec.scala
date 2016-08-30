@@ -49,18 +49,18 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
   }
 
   "Reader.openCloseAsRandom" should "open the file for read" in writtenByRandom { fileName =>
-    val reader = Reader.open(fileName)
+    val reader = RandomReader.open(fileName)
     reader.name should be(fileName)
-    reader.isInstanceOf[RandomReadIndex] should be(true)
-    Reader.destroy(reader)
+    reader.isInstanceOf[RandomReader] should be(true)
+    reader.destroy
     new File(fileName).exists should be(false)
   }
 
   "Reader.openCloseAsSequential" should "open the file for read" in writtenBySequential { fileName =>
-    val reader = Reader.open(fileName, Sequential)
+    val reader = SequentialReader.open(fileName)
     reader.name should be(fileName)
-    reader.isInstanceOf[SequentialReadIndex] should be(true)
-    Reader.destroy(reader)
+    reader.isInstanceOf[SequentialReader] should be(true)
+    reader.destroy
     new File(fileName).exists should be(false)
   }
 }
