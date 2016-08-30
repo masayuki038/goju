@@ -56,7 +56,7 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
 
   "lookup" should "return 'hogehoge'" in writtenByRandom { fileName =>
     val reader = RandomReader.open(fileName)
-    reader.lookup(Utils.toBytes("foo")) should be(Option("hogehoge"))
+    reader.lookup(Utils.toBytes("hoge")) should be(Option("hogehoge"))
     reader.destroy
   }
 
