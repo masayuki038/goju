@@ -20,7 +20,7 @@ import net.wrap_trap.goju.{Utils, ElementOutputStream, Constants, Key}
   */
 case class KeyValue(val _key: Key, val _value: Value, val _timestamp: Option[DateTime]) extends Element {
 
-  def this(_rawKey: Array[Byte], _value: Value, _timestamp: Option[DateTime] = None) = {
+  def this(_rawKey: Array[Byte], _value: Value, _timestamp: Option[DateTime] = None) {
     this(Key(_rawKey), _value, _timestamp)
   }
 

@@ -26,6 +26,10 @@ class Settings(config: Config) {
 
   def getInt(path: String, default: Int): Int = readValue(path, config.getInt(path), default)
 
+  def getLong(path: String, default: Long): Long = readValue(path, config.getLong(path), default)
+
+  def hasPath(path: String) = config.hasPath(path)
+
   private def readValue[T](path: String, v: => T, default: T): T = {
     try {
       v

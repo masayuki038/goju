@@ -5,11 +5,14 @@ import java.nio.charset.Charset
 import java.util.zip.CRC32
 
 import com.google.common.primitives.UnsignedBytes
+import com.typesafe.config.Config
 import com.typesafe.scalalogging.Logger
 import net.wrap_trap.goju.element.Element
 import net.wrap_trap.goju.Helper._
 import org.joda.time.DateTime
 import org.slf4j.LoggerFactory
+
+import scala.collection.concurrent.RDCSS_Descriptor
 
 /**
   * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
@@ -21,6 +24,12 @@ import org.slf4j.LoggerFactory
   */
 object Utils {
   val log = Logger(LoggerFactory.getLogger(Utils.getClass))
+
+  def ensureExpiry() = {
+    if(!Settings.getSettings.hasPath("goju.expiry_secs")) {
+      throw new IllegalStateException("config:goju.expiry_secs not found")
+    }
+  }
 
   def toBytes(str: String): Array[Byte] = {
     str.getBytes(Charset.forName("UTF-8"))
@@ -116,6 +125,42 @@ object Utils {
       s += ' '
     }
     log.debug(s"""$subject: $s""")
+  }
+
+  def decodeCRCData(logBinary: Array[Byte], broken: List[Array[Byte]], acc: List[Element]): List[Element] = {
+    if(logBinary.size == 0) {
+      if(broken.size > 0) {
+        log.warn("Found " + broken.size + " broken logs in decodeCRCData")
+      }
+      return acc.reverse
+    }
+    val (crc, bin, rest) = parseBinaryLog(logBinary)
+    if(!checkCRC(crc, bin)) {
+      decodeCRCData(rest, bin :: broken, acc)
+    } else {
+      decodeCRCData(rest, broken, SerDes.deserialize(bin) :: acc)
+    }
+  }
+
+  def expireTime(expireSecs: Int): DateTime = {
+    new DateTime(System.currentTimeMillis + (expireSecs * 1000L))
+  }
+
+  private def parseBinaryLog(logBinary: Array[Byte]): (Int, Array[Byte], Array[Byte]) = {
+    using(new ElementInputStream(new ByteArrayInputStream(logBinary))) { eis =>
+      val binSize = eis.readInt
+      val crc = eis.readInt
+      val bin = eis.read(binSize)
+      if(eis.read == Constants.TAG_END) {
+        throw new IllegalStateException("Failed to read nursery from log file")
+      }
+      val restSize =logBinary.size - (4 + 4 + binSize + 1)
+      if(restSize > 0) {
+        (crc, bin, eis.read(restSize))
+      } else {
+        (crc, bin, Array.empty[Byte])
+      }
+    }
   }
 
   private def getCRCValue(body: Array[Byte]): Long = {
