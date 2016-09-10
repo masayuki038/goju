@@ -36,12 +36,42 @@ class NurserySpec extends TestKit(ActorSystem("test"))
     testCode(Nursery.newNursery(".", 1, 2), TestActorRef[PlainRpcActor])
   }
 
-//  "Nursery.add" should "be added KeyValue" in newNursery { (nursery, top) =>
-//    val key = Utils.toBytes("foo")
-//    Nursery.add(key, "bar", 600, nursery, top)
-//    nursery.tree.size should be(1)
-//    nursery.tree.containsKey(key) should be(true)
-//    nursery.tree.get(key).isInstanceOf[KeyValue] should be(true)
-//    nursery.tree.get(key).asInstanceOf[KeyValue].value should be("bar")
-//  }
+  def twoInNursery(testCode: (Nursery, ActorRef) => Any) {
+    val nursery = Nursery.newNursery(".", 1, 2)
+    val top = TestActorRef[PlainRpcActor]
+    Nursery.add(Utils.toBytes("foo"), "bar", 600, nursery, top)
+    Nursery.add(Utils.toBytes("hoge"), "hogehoge", 600, nursery, top)
+    testCode(nursery, top)
+  }
+
+  "Nursery.add" should "be added KeyValue" in newNursery { (nursery, top) =>
+    val rawKey1 = Utils.toBytes("foo")
+    Nursery.add(rawKey1, "bar", 600, nursery, top)
+    val key1 = Key(rawKey1)
+    nursery.tree.size should be(1)
+    nursery.tree.containsKey(key1) should be(true)
+    nursery.tree.get(key1).isInstanceOf[KeyValue] should be(true)
+    nursery.tree.get(key1).asInstanceOf[KeyValue].value should be("bar")
+
+    val rawKey2 = Utils.toBytes("hoge")
+    Nursery.add(rawKey2, "hogehoge", 600, nursery, top)
+    val key2 = Key(rawKey2)
+    nursery.tree.size should be(2)
+    nursery.tree.containsKey(key2) should be(true)
+    nursery.tree.get(key2).isInstanceOf[KeyValue] should be(true)
+    nursery.tree.get(key2).asInstanceOf[KeyValue].value should be("hogehoge")
+  }
+
+  "Nursery.recover" should "be recoverd two elements" in twoInNursery { (nursery, top) =>
+    nursery.logger.close
+    val key1 = Key(Utils.toBytes("foo"))
+    val key2 = Key( Utils.toBytes("hoge"))
+
+    val newNursery = Nursery.recover(".", top, 1, 2)
+
+    val reader = RandomReader.open(newNursery.dirPath + java.io.File.separator + Nursery.DATA_FILENAME)
+    reader.lookup(Utils.toBytes("foo")) should be(Option("bar"))
+    reader.lookup(Utils.toBytes("hoge")) should be(Option("hogehoge"))
+    reader.destroy
+  }
 }

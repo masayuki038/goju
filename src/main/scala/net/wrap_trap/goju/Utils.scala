@@ -146,15 +146,14 @@ object Utils {
     new DateTime(System.currentTimeMillis + (expireSecs * 1000L))
   }
 
-  private def parseBinaryLog(logBinary: Array[Byte]): (Int, Array[Byte], Array[Byte]) = {
+  private def parseBinaryLog(logBinary: Array[Byte]): (Long, Array[Byte], Array[Byte]) = {
     using(new ElementInputStream(new ByteArrayInputStream(logBinary))) { eis =>
+      Utils.dumpBinary(logBinary, "logBinary in parseBinaryLog")
       val binSize = eis.readInt
-      val crc = eis.readInt
+      val crc = eis.readLong
       val bin = eis.read(binSize)
-      if(eis.read == Constants.TAG_END) {
-        throw new IllegalStateException("Failed to read nursery from log file")
-      }
-      val restSize =logBinary.size - (4 + 4 + binSize + 1)
+      eis.readEndTag
+      val restSize =logBinary.size - (4 + 8 + binSize + 1)
       if(restSize > 0) {
         (crc, bin, eis.read(restSize))
       } else {

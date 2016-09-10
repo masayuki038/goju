@@ -18,8 +18,8 @@ import net.wrap_trap.goju.element.{KeyValue, Element}
   * http://opensource.org/licenses/mit-license.php
   */
 object Nursery {
-  private val LOG_FILENAME = "nursery.log"
-  private val DATA_FILENAME = "nursery.data"
+  val LOG_FILENAME = "nursery.log"
+  val DATA_FILENAME = "nursery.data"
 
   def newNursery(dirPath: String, minLevel: Int, maxLevel: Int): Nursery = {
     Utils.ensureExpiry
@@ -84,15 +84,15 @@ object Nursery {
   private def readNurseryFromLog(logFile: File, minLevel: Int, maxLevel: Int): Nursery = {
     val logBinary = java.nio.file.Files.readAllBytes(logFile.toPath)
     val recovered = Utils.decodeCRCData(logBinary, List.empty[Array[Byte]], List.empty[Element])
-    val tree = new TreeMap[Array[Byte], Element]
-    for(e <- recovered) {if(!e.tombstoned) {tree.put(e.key.bytes, e)}}
+    val tree = new TreeMap[Key, Element]
+    for(e <- recovered) {if(!e.tombstoned) {tree.put(e.key, e)}}
     new Nursery(logFile.getParent, minLevel, maxLevel, tree)
   }
 }
 
-class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tree: TreeMap[Array[Byte], Element]) {
+class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tree: TreeMap[Key, Element]) {
   def this(dirPath: String, minLevel: Int, maxLevel: Int) = {
-    this(dirPath, minLevel, maxLevel, new TreeMap[Array[Byte], Element])
+    this(dirPath, minLevel, maxLevel, new TreeMap[Key, Element])
   }
   val logger = new FileOutputStream(dirPath + java.io.File.separator + Nursery.LOG_FILENAME, true)
   var lastSync = System.currentTimeMillis
@@ -103,21 +103,21 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
     new File(dirPath + java.io.File.separator + Nursery.LOG_FILENAME).delete()
   }
 
-  def doAdd(key: Array[Byte], value: Value, keyExpireSecs: Int, top: ActorRef): Boolean = {
+  def doAdd(rawKey: Array[Byte], value: Value, keyExpireSecs: Int, top: ActorRef): Boolean = {
     val dbExpireSecs = Settings.getSettings().getInt("goju.expiry_secs", 0)
     val keyValue = (keyExpireSecs + dbExpireSecs == 0) match {
       case true => {
-        new KeyValue(key, value, None)
+        new KeyValue(rawKey, value, None)
       }
       case _ => {
         val expireTime = (dbExpireSecs == 0) match {
           case true => Utils.expireTime(dbExpireSecs)
           case _ => Utils.expireTime(Math.min(keyExpireSecs, dbExpireSecs))
         }
-        new KeyValue(key, value, Option(expireTime))
+        new KeyValue(rawKey, value, Option(expireTime))
       }
     }
-    tree.put(key, keyValue)
+    tree.put(keyValue.key, keyValue)
     val data = Utils.encodeIndexNode(keyValue)
     logger.write(data)
     doSync()

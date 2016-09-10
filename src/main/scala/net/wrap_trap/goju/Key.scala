@@ -10,12 +10,16 @@ import com.google.common.primitives.UnsignedBytes._
   * This software is released under the MIT License.
   * http://opensource.org/licenses/mit-license.php
   */
-case class Key(val bytes: Array[Byte]) {
+case class Key(val bytes: Array[Byte]) extends Comparable[Key]{
   def ==(that: Key): Boolean = lexicographicalComparator().compare(bytes, that.bytes) == 0
   def >(that: Key): Boolean = lexicographicalComparator().compare(bytes, that.bytes) > 0
   def >=(that: Key): Boolean = lexicographicalComparator().compare(bytes, that.bytes) >= 0
   def <(that: Key): Boolean = lexicographicalComparator().compare(bytes, that.bytes) < 0
   def <=(that: Key): Boolean = lexicographicalComparator().compare(bytes, that.bytes) <= 0
+
+  override def compareTo(that: Key) = {
+    Utils.compareBytes(this.bytes, that.bytes)
+  }
 
   override def hashCode(): Int = bytes.hashCode
 
