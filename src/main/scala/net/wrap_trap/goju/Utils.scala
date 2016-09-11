@@ -5,7 +5,6 @@ import java.nio.charset.Charset
 import java.util.zip.CRC32
 
 import com.google.common.primitives.UnsignedBytes
-import com.typesafe.config.Config
 import com.typesafe.scalalogging.Logger
 import net.wrap_trap.goju.element.Element
 import net.wrap_trap.goju.Helper._

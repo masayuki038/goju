@@ -66,6 +66,14 @@ object Nursery {
     }
   }
 
+  def ensureSpace(nursery: Nursery, neededRooms: Int, top: ActorRef): Nursery = {
+    if(nursery.hasRoom(neededRooms)) {
+      nursery
+    } else {
+      flush(nursery, top)
+    }
+  }
+
   private def finish(nursery: Nursery, logFile: File, topLevel: ActorRef): Unit = {
     Utils.ensureExpiry
 
@@ -111,7 +119,7 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
       }
       case _ => {
         val expireTime = (dbExpireSecs == 0) match {
-          case true => Utils.expireTime(dbExpireSecs)
+          case true => Utils.expireTime(keyExpireSecs)
           case _ => Utils.expireTime(Math.min(keyExpireSecs, dbExpireSecs))
         }
         new KeyValue(rawKey, value, Option(expireTime))
@@ -149,4 +157,33 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
   def hasRoom(n: Int): Boolean = {
     (count + n + 1) < (1 << this.minLevel)
   }
+
+  def transact(transactionSpecs: List[(TransactionOp, Any)], nursery: Nursery, top: ActorRef) = {
+    val dbExpireSecs = Settings.getSettings().getInt("goju.expiry_secs", 0)
+    val ops = transactionSpecs.map { spec =>
+      spec match {
+        case (Delete, key: Array[Byte]) =>
+          new KeyValue(key, Constants.TOMBSTONE, Option(Utils.expireTime(dbExpireSecs)))
+        case (Put, (key: Array[Byte], value: Value)) =>
+          new KeyValue(key, value, Option(Utils.expireTime(dbExpireSecs)))
+      }
+    }
+
+    ops.foreach(op => {
+      logger.write(Utils.encodeIndexNode(op))
+    })
+    doSync()
+
+    ops.foreach(op => {
+      tree.put(op.key, op)
+    })
+
+    this.count = tree.size
+  }
+
+  // TODO implement do_inc_merge, do_level_fold
 }
+
+sealed abstract class TransactionOp
+case object Delete extends TransactionOp
+case object Put extends TransactionOp
