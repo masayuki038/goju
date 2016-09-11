@@ -39,8 +39,8 @@ class NurserySpec extends TestKit(ActorSystem("test"))
   def twoInNursery(testCode: (Nursery, ActorRef) => Any) {
     val nursery = Nursery.newNursery(".", 1, 2)
     val top = TestActorRef[PlainRpcActor]
-    Nursery.add(Utils.toBytes("foo"), "bar", 600, nursery, top)
-    Nursery.add(Utils.toBytes("hoge"), "hogehoge", 600, nursery, top)
+    Nursery.add(Utils.toBytes("foo"), "bar", 5, nursery, top)
+    Nursery.add(Utils.toBytes("hoge"), "hogehoge", 10, nursery, top)
     testCode(nursery, top)
   }
 
@@ -62,6 +62,16 @@ class NurserySpec extends TestKit(ActorSystem("test"))
     nursery.tree.get(key2).asInstanceOf[KeyValue].value should be("hogehoge")
   }
 
+  // TODO Add Nurseary.add should KeyValue with expire time when implement Nursery.get
+//  "Nursery.add" should "be added KeyValue with expire time" in newNursery { (nursery, top) =>
+//    val rawKey1 = Utils.toBytes("foo")
+//    Nursery.add(rawKey1, "bar", 5, nursery, top)
+//    val key1 = Key(rawKey1)
+//    Thread.sleep(5000L)
+//    nursery.tree.size should be(1)
+//    nursery.tree.containsKey(key1) should be(false)
+//  }
+
   "Nursery.recover" should "be recoverd two elements" in twoInNursery { (nursery, top) =>
     nursery.logger.close
     val key1 = Key(Utils.toBytes("foo"))
@@ -72,6 +82,25 @@ class NurserySpec extends TestKit(ActorSystem("test"))
     val reader = RandomReader.open(newNursery.dirPath + java.io.File.separator + Nursery.DATA_FILENAME)
     reader.lookup(Utils.toBytes("foo")) should be(Option("bar"))
     reader.lookup(Utils.toBytes("hoge")) should be(Option("hogehoge"))
+    reader.destroy
+  }
+
+  "Nursery.recover" should "be recoverd two elements with expire time" in twoInNursery { (nursery, top) =>
+    nursery.logger.close
+    val key1 = Key(Utils.toBytes("foo"))
+    val key2 = Key( Utils.toBytes("hoge"))
+
+    val newNursery = Nursery.recover(".", top, 1, 2)
+    val reader = RandomReader.open(newNursery.dirPath + java.io.File.separator + Nursery.DATA_FILENAME)
+
+    Thread.sleep(5000L)
+    reader.lookup(Utils.toBytes("foo")) should be(None)
+    reader.lookup(Utils.toBytes("hoge")) should be(Option("hogehoge"))
+
+    Thread.sleep(5000L)
+    reader.lookup(Utils.toBytes("foo")) should be(None)
+    reader.lookup(Utils.toBytes("hoge")) should be(None)
+
     reader.destroy
   }
 }
