@@ -1,6 +1,9 @@
 package net.wrap_trap.goju
 
+import java.io.ByteArrayInputStream
+
 import com.typesafe.scalalogging.Logger
+import net.wrap_trap.goju.Helper._
 import org.slf4j.LoggerFactory
 import net.wrap_trap.goju.element.{Element, KeyValue, KeyRef}
 
@@ -24,6 +27,13 @@ trait Reader {
 
   def close(): Unit
   def delete(): Unit
+
+
+  protected def readHeader(bytes: Array[Byte]): (Long, Int) = {
+    using(new ElementInputStream(new ByteArrayInputStream(bytes))) { eis =>
+      (eis.readInt.toLong, eis.readShort.toInt)
+    }
+  }
 }
 
 case class ReaderNode(level: Int, members: List[Element] = List.empty)

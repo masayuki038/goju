@@ -55,6 +55,10 @@ class ElementInputStream(is: InputStream) extends AutoCloseable {
     buf
   }
 
+  def read(bytes: Array[Byte], off: Int, len: Int): Int = {
+    this.internal.read(bytes, off, len)
+  }
+
   def readEndTag() = {
     val ch1 = read
     if (ch1 < 0)
@@ -67,6 +71,10 @@ class ElementInputStream(is: InputStream) extends AutoCloseable {
 
   def skip(n: Long) = {
     this.internal.skip(n)
+  }
+
+  def reset() = {
+    this.internal.reset()
   }
 
   override def close() = {

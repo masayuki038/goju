@@ -301,12 +301,6 @@ class RandomReader(val name: String) extends Reader {
     }
   }
 
-  private def readHeader(bytes: Array[Byte]): (Long, Int) = {
-    using(new ElementInputStream(new ByteArrayInputStream(bytes))) { eis =>
-      (eis.readInt.toLong, eis.readShort.toInt)
-    }
-  }
-
   def skip(n: Long): Unit = {
     randomAccessFile.seek(n)
   }
