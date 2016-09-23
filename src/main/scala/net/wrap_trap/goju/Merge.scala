@@ -1,6 +1,6 @@
 package net.wrap_trap.goju
 
-import akka.actor.ActorRef
+import akka.actor.{Actor, ActorRef}
 import net.wrap_trap.goju.element.Element
 
 /**
@@ -18,7 +18,7 @@ object Merge {
 
 }
 
-class Merge(val aPath: String, val bPath: String, val cPath: String, val size: Int, val isLastLevel: Boolean) {
+class Merge(val aPath: String, val bPath: String, val cPath: String, val size: Int, val isLastLevel: Boolean) extends Actor {
   val aReader = SequentialReader.open(aPath)
   val bReader = SequentialReader.open(bPath)
   val out = Writer.open(cPath)
@@ -39,7 +39,7 @@ class Merge(val aPath: String, val bPath: String, val cPath: String, val size: I
   }
 
   def receive = {
-    case (Step, howMany) => {
+    case (Step, howMany: Int) => {
       this.n += howMany
       scan()
     }
@@ -88,5 +88,5 @@ class Merge(val aPath: String, val bPath: String, val cPath: String, val size: I
 
 sealed abstract class MergeOp
 case object Step extends MergeOp
-case object System extends MergeOp
+case object SystemMerge extends MergeOp
 case object Exit extends MergeOp
