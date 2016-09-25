@@ -92,6 +92,12 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
 
   def handleCall(msg: Any): Any = {
     msg match {
+      case ('add, kv: KeyValue) => {
+        if(!kv.expired) {
+          val newState = appendNode(0, kv, this.state.get)
+          this.state = Option(newState)
+        }
+      }
       case ('count) => {
         this.state match {
           case Some(s) => s.valueCount + s.tombstoneCount

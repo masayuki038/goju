@@ -1,7 +1,9 @@
 package net.wrap_trap.goju
 
 import akka.actor.{Actor, ActorRef}
+import akka.util.Timeout
 import net.wrap_trap.goju.element.Element
+import scala.concurrent.duration._
 
 /**
   * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
@@ -18,13 +20,21 @@ object Merge {
 
 }
 
-class Merge(val aPath: String, val bPath: String, val cPath: String, val size: Int, val isLastLevel: Boolean) extends Actor {
+class Merge(val aPath: String, val bPath: String, val cPath: String, val size: Int, val isLastLevel: Boolean) extends Actor with PlainRpc {
   val aReader = SequentialReader.open(aPath)
   val bReader = SequentialReader.open(bPath)
   val out = Writer.open(cPath)
   var n = 0
   var aKVs:Option[List[Element]] = None
   var bKVs:Option[List[Element]] = None
+  var count: Option[Int] = None
+
+  val writerTimeout = Settings.getSettings().getInt("goju.merge.writer_timeout", 300)
+  implicit val timeout = Timeout(writerTimeout seconds)
+
+  // for scanOnly
+  var cReader: Option[SequentialReader] = None
+  var cKVs:Option[List[Element]] = None
 
   def merge() = {
     aKVs = aReader.firstNode match {
@@ -39,16 +49,21 @@ class Merge(val aPath: String, val bPath: String, val cPath: String, val size: I
   }
 
   def receive = {
+
     case (Step, howMany: Int) => {
       this.n += howMany
-      scan()
+      if(cReader.isEmpty) {
+        scan()
+      } else {
+        scanOnly()
+      }
     }
       // TODO 'system' and 'exit'
   }
 
   // Expect to call this method from "merge" only
   // Therefore, don't call back merging states to other actor
-  private def scan(): Unit = {
+  private def scan()(implicit timeout: Timeout): Unit = {
     val a = aKVs.get
     val b = bKVs.get
 
@@ -65,7 +80,9 @@ class Merge(val aPath: String, val bPath: String, val cPath: String, val size: I
         }
         case None => {
           aReader.close()
-          // scan_only
+          this.cReader = Option(this.bReader)
+          this.cKVs = this.bKVs
+          scanOnly()
         }
       }
     }
@@ -75,14 +92,77 @@ class Merge(val aPath: String, val bPath: String, val cPath: String, val size: I
         case Some(b2) => {
           this.bKVs = Option(b2)
           scan()
+          return
         }
         case None => {
           bReader.close()
-          // scan_only
+          this.cReader = Option(this.aReader)
+          this.cKVs = this.aKVs
+          scanOnly()
+          return
         }
       }
     }
 
+    val aKV = a.head
+    val bKV = b.head
+    if(aKV.key < bKV.key) {
+      call(out, ('add, aKV))
+      this.aKVs = Option(a.tail)
+      this.n -= 1
+      scan()
+    } else if(aKV.key > bKV.key) {
+      call(out, ('add, bKV))
+      this.bKVs = Option(b.tail)
+      this.n -= 1
+      scan()
+    } else {
+      call(out, ('add, bKV))
+      this.aKVs = Option(a.tail)
+      this.bKVs = Option(b.tail)
+      this.n -= 2
+      scan()
+    }
+  }
+
+  // Expect to call this method from "scan" only
+  // Therefore, don't call back merging states to other actor
+  private def scanOnly()(implicit timeout: Timeout): Unit = {
+    val c = cKVs.get
+    if(n < 1 && c.nonEmpty) {
+      // stop scan and do nothing
+      return
+    }
+
+    if(c.isEmpty) {
+      val reader = cReader.get
+      reader.nextNode() match {
+        case Some(c2) => {
+          this.cKVs = Option(c2)
+          scanOnly()
+          return
+        }
+        case None => {
+          reader.close()
+          terminate()
+          return
+        }
+      }
+    }
+
+    val cKV = c.head
+    if(!cKV.tombstoned) {
+      call(out, ('add, cKV))
+    }
+    this.cKVs = Option(c.tail)
+    this.n -= 1
+    scanOnly()
+  }
+
+  private def terminate(): Unit = {
+    val cnt = call(out, ('count))
+    this.count = Option(cnt.asInstanceOf[Int])
+    call(out, 'close)
   }
 }
 
