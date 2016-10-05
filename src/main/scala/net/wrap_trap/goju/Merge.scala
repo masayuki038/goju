@@ -1,6 +1,6 @@
 package net.wrap_trap.goju
 
-import akka.actor.{Actor, ActorRef}
+import akka.actor.{Props, ActorSystem, Actor, ActorRef}
 import akka.util.Timeout
 import net.wrap_trap.goju.element.Element
 import scala.concurrent.duration._
@@ -14,10 +14,10 @@ import scala.concurrent.duration._
   * http://opensource.org/licenses/mit-license.php
   */
 object Merge {
-  def start(): Unit = {
-    // TODO
+  def start(owner: ActorRef, aPath: String, bPath: String, cPath: String, size: Int, isLastLevel: Boolean): ActorRef = {
+    val system = ActorSystem("system")
+    system.actorOf(Props(classOf[Merge], aPath, bPath, cPath, size, isLastLevel))
   }
-
 }
 
 class Merge(val aPath: String, val bPath: String, val cPath: String, val size: Int, val isLastLevel: Boolean) extends Actor with PlainRpc {
@@ -35,6 +35,10 @@ class Merge(val aPath: String, val bPath: String, val cPath: String, val size: I
   // for scanOnly
   var cReader: Option[SequentialReader] = None
   var cKVs:Option[List[Element]] = None
+
+  override def preStart(): Unit = {
+    merge()
+  }
 
   def merge() = {
     aKVs = aReader.firstNode match {
@@ -58,7 +62,7 @@ class Merge(val aPath: String, val bPath: String, val cPath: String, val size: I
         scanOnly()
       }
     }
-      // TODO 'system' and 'exit'
+      // TODO handle system messages
   }
 
   // Expect to call this method from "merge" only
