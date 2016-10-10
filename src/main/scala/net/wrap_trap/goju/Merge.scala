@@ -16,18 +16,17 @@ import scala.concurrent.duration._
 object Merge {
   def start(owner: ActorRef, aPath: String, bPath: String, cPath: String, size: Int, isLastLevel: Boolean): ActorRef = {
     val system = ActorSystem("system")
-    system.actorOf(Props(classOf[Merge], aPath, bPath, cPath, size, isLastLevel))
+    system.actorOf(Props(classOf[Merge], owner, aPath, bPath, cPath, size, isLastLevel))
   }
 }
 
-class Merge(val aPath: String, val bPath: String, val outPath: String, val size: Int, val isLastLevel: Boolean) extends Actor with PlainRpc {
+class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPath: String, val size: Int, val isLastLevel: Boolean) extends Actor with PlainRpc {
   val aReader = SequentialReader.open(aPath)
   val bReader = SequentialReader.open(bPath)
   val out = Writer.open(outPath)
   var n = 0
   var aKVs:Option[List[Element]] = None
   var bKVs:Option[List[Element]] = None
-  var count: Option[Int] = None
 
   val writerTimeout = Settings.getSettings().getInt("goju.merge.writer_timeout", 300)
   implicit val timeout = Timeout(writerTimeout seconds)
@@ -53,16 +52,21 @@ class Merge(val aPath: String, val bPath: String, val outPath: String, val size:
   }
 
   def receive = {
+    case (PlainRpcProtocol.cast, msg) => handleCast(msg)
+  }
 
-    case (Step, howMany: Int) => {
-      this.n += howMany
-      if(cReader.isEmpty) {
-        scan()
-      } else {
-        scanOnly()
+  def handleCast(msg: Any) = {
+    msg match {
+      case (Step, howMany: Int) => {
+        this.n += howMany
+        if (cReader.isEmpty) {
+          scan()
+        } else {
+          scanOnly()
+        }
       }
-    }
       // TODO handle system messages
+    }
   }
 
   // Expect to call this method from "merge" only
@@ -81,12 +85,14 @@ class Merge(val aPath: String, val bPath: String, val outPath: String, val size:
         case Some(a2) => {
           this.aKVs = Option(a2)
           scan()
+          return
         }
         case None => {
           aReader.close()
           this.cReader = Option(this.bReader)
           this.cKVs = this.bKVs
           scanOnly()
+          return
         }
       }
     }
@@ -148,7 +154,8 @@ class Merge(val aPath: String, val bPath: String, val outPath: String, val size:
         }
         case None => {
           reader.close()
-          terminate()
+          val cnt = terminate()
+          cast(owner, (MergeDone, cnt, outPath))
           return
         }
       }
@@ -163,14 +170,13 @@ class Merge(val aPath: String, val bPath: String, val outPath: String, val size:
     scanOnly()
   }
 
-  private def terminate(): Unit = {
+  private def terminate(): Int = {
     val cnt = call(out, ('count))
-    this.count = Option(cnt.asInstanceOf[Int])
     call(out, 'close)
+    cnt.asInstanceOf[Int]
   }
 }
 
 sealed abstract class MergeOp
 case object Step extends MergeOp
-case object SystemMerge extends MergeOp
-case object Exit extends MergeOp
+case object MergeDone extends MergeOp

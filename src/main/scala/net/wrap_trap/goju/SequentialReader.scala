@@ -2,7 +2,9 @@ package net.wrap_trap.goju
 
 import java.io.{File, FileInputStream, BufferedInputStream}
 
+import com.typesafe.scalalogging.Logger
 import net.wrap_trap.goju.element.Element
+import org.slf4j.LoggerFactory
 
 /**
   * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
@@ -13,6 +15,8 @@ import net.wrap_trap.goju.element.Element
   * http://opensource.org/licenses/mit-license.php
   */
 object SequentialReader {
+  val log = Logger(LoggerFactory.getLogger(SequentialReader.getClass))
+
   def open(name: String): SequentialReader = {
     new SequentialReader(name)
   }
@@ -30,7 +34,7 @@ object SequentialReader {
 }
 
 class SequentialReader(val name: String) extends Reader {
-  val inputStream = buildInputStream(name)
+  var inputStream = buildInputStream(name)
   val file = new File(name)
 
   def skip(n: Long): Unit = {
@@ -38,7 +42,13 @@ class SequentialReader(val name: String) extends Reader {
   }
 
   def close(): Unit = {
-   inputStream.close
+    try {
+      inputStream.close
+    } catch {
+      case ignore: Exception => {
+        log.warn("Failed to close inputStream", ignore)
+      }
+    }
   }
 
   def delete(): Unit = {
@@ -48,7 +58,8 @@ class SequentialReader(val name: String) extends Reader {
   }
 
   def firstNode(): Option[List[Element]] = {
-    this.inputStream.reset()
+    close()
+    this.inputStream = buildInputStream(name)
     readNode(PosLen(Constants.FIRST_BLOCK_POS)) match {
       case Some(firstNode) => {
         firstNode.level match {
