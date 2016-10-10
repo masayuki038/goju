@@ -20,14 +20,6 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
   with ShouldMatchers
   with StopSystemAfterAll {
 
-  trait Factory {
-    val fileName: String
-    val writer = Writer.open(fileName)
-    Writer.add(writer, new KeyValue(Utils.toBytes("foo"), "bar"))
-    Writer.close(writer)
-    Thread.sleep(1000L)
-  }
-
   private def write(fileName: String) = {
     val writer = Writer.open(fileName)
     Writer.add(writer, new KeyValue(Utils.toBytes("foo"), "bar"))
