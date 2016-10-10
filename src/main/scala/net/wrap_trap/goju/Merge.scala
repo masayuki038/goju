@@ -20,10 +20,10 @@ object Merge {
   }
 }
 
-class Merge(val aPath: String, val bPath: String, val cPath: String, val size: Int, val isLastLevel: Boolean) extends Actor with PlainRpc {
+class Merge(val aPath: String, val bPath: String, val outPath: String, val size: Int, val isLastLevel: Boolean) extends Actor with PlainRpc {
   val aReader = SequentialReader.open(aPath)
   val bReader = SequentialReader.open(bPath)
-  val out = Writer.open(cPath)
+  val out = Writer.open(outPath)
   var n = 0
   var aKVs:Option[List[Element]] = None
   var bKVs:Option[List[Element]] = None
