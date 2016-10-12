@@ -1,8 +1,10 @@
 package net.wrap_trap.goju
 
 import akka.actor.{Actor, Props, ActorContext, ActorRef}
+import akka.util.Timeout
 import com.typesafe.scalalogging.Logger
 import org.slf4j.LoggerFactory
+import scala.concurrent.duration._
 
 /**
   * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
@@ -14,6 +16,8 @@ import org.slf4j.LoggerFactory
   */
 object Level extends PlainRpc {
   val log = Logger(LoggerFactory.getLogger(Level.getClass))
+  val callTimeout = Settings.getSettings().getInt("goju.level.call_timeout", 300)
+  implicit val timeout = Timeout(callTimeout seconds)
 
   def open(dirPath: String, level: Int, owner: ActorRef, context: ActorContext): ActorRef = {
     // TODO This method should be moved to 'Owner'
