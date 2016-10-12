@@ -85,7 +85,9 @@ object Level extends PlainRpc {
 }
 
 class Level(val dirPath: String, val level: Int, val owner: ActorRef) extends Actor with PlainRpc {
-  def receive = {}
+  def receive = {
+    ???
+  }
 }
 
 sealed abstract class LevelOp
