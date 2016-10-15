@@ -1,5 +1,7 @@
 package net.wrap_trap.goju
 
+import java.io.File
+
 import akka.actor.{Actor, Props, ActorContext, ActorRef}
 import akka.util.Timeout
 import com.typesafe.scalalogging.Logger
@@ -89,6 +91,101 @@ object Level extends PlainRpc {
 }
 
 class Level(val dirPath: String, val level: Int, val owner: ActorRef) extends Actor with PlainRpc {
+
+  var aReader: Option[RandomReader] = None
+  var bReader: Option[RandomReader] = None
+  var cReader: Option[RandomReader] = None
+  var mergePid: Option[ActorRef] = None
+  var next: Option[ActorRef] = None
+
+  private def initialize(): Unit = {
+    Utils.ensureExpiry
+    val aFileName = filename("A")
+    val bFileName = filename("B")
+    val cFileName = filename("C")
+    val mFileName = filename("M")
+
+    Utils.deleteFile(filename("X"))
+    Utils.deleteFile(filename("AF"))
+    Utils.deleteFile(filename("BF"))
+    Utils.deleteFile(filename("CF"))
+
+    new File(mFileName).exists match {
+      case true => {
+        Utils.deleteFile(aFileName)
+        Utils.deleteFile(bFileName)
+        Utils.renameFile(mFileName, aFileName)
+
+        this.aReader = Option(RandomReader.open(aFileName))
+
+        new File(cFileName).exists match {
+          case true => {
+            Utils.renameFile(cFileName, bFileName)
+            this.bReader = Option(RandomReader.open(bFileName))
+            checkBeginMergeThenLoop0()
+          }
+          case false => {
+            mainLoop()
+          }
+        }
+      }
+      case false => {
+        new File(bFileName).exists match {
+          case true => {
+            this.aReader = Option(RandomReader.open(aFileName))
+            this.bReader = Option(RandomReader.open(bFileName))
+            new File(cFileName).exists match {
+              case true =>
+                this.cReader = Option(RandomReader.open(cFileName))
+            }
+          }
+          case false => {
+            new File(cFileName).exists match {
+              case true =>
+                throw new IllegalStateException("Conflict: bFileName doesn't exist but cFileName exists")
+              case false => {
+                new File(aFileName).exists match {
+                  case true => {
+                    this.aReader = Option(RandomReader.open(aFileName))
+                  }
+                  case false => // do nothing
+                }
+                mainLoop()
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private def mainLoop(): Unit = {
+    // loop
+  }
+
+  private def checkBeginMergeThenLoop0(): Unit = {
+    if(aReader.isDefined && bReader.isDefined && mergePid.isEmpty) {
+      val pid = beginMerge()
+
+    }
+  }
+
+  private def beginMerge(): ActorRef = {
+    val aFileName = filename("A")
+    val bFileName = filename("B")
+    val xFileName = filename("X")
+
+    Utils.deleteFile(xFileName)
+
+    Merge.start(self, aFileName, bFileName, xFileName, Utils.btreeSize(this.level), next.isEmpty)
+  }
+
+
+
+  private def filename(prefix: String): String = {
+    "%s%s%s-%d.data".format(dirPath, File.separator, prefix, this.level)
+  }
+
   def receive = {
     ???
   }

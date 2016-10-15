@@ -1,6 +1,6 @@
 package net.wrap_trap.goju
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
+import java.io.{File, ByteArrayInputStream, ByteArrayOutputStream}
 import java.nio.charset.Charset
 import java.util.zip.CRC32
 
@@ -143,6 +143,25 @@ object Utils {
 
   def expireTime(expireSecs: Int): DateTime = {
     new DateTime(System.currentTimeMillis + (expireSecs * 1000L))
+  }
+
+  def deleteFile(filePath: String): Unit = {
+    val file = new File(filePath)
+    if(file.exists && !file.delete()) {
+      throw new IllegalStateException("Failed to delete: " + filePath)
+    }
+  }
+
+  def renameFile(srcPath: String, destPath: String): Unit = {
+    val src = new File(srcPath)
+    val dest = new File(destPath)
+    if(!src.renameTo(dest)) {
+      throw new IllegalStateException("Failed to rename file. src: %s, dest: %s".format(srcPath, destPath))
+    }
+  }
+
+  def btreeSize(level: Int): Int = {
+    1 << level
   }
 
   private def parseBinaryLog(logBinary: Array[Byte]): (Long, Array[Byte], Array[Byte]) = {
