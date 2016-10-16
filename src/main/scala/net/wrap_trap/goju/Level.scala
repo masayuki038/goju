@@ -384,7 +384,7 @@ class Level(val dirPath: String, val level: Int, val owner: ActorRef) extends Ac
 
   private def doLookup(key: Array[Byte], list: List[Option[RandomReader]], next: Option[ActorRef]): Any = {
     list match {
-      case () => next match {
+      case List() => next match {
         case Some(pid) => (Delegate, pid)
         case _ => NotFound
       }

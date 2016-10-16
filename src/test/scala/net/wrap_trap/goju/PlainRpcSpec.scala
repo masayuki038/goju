@@ -26,12 +26,6 @@ class PlainRpcSpec extends TestKit(ActorSystem("test"))
     val actor2 = TestActorRef[PlainRpcActor]
   }
 
-  "PlainRpc.sendCall" should "include 'CALL" in new Factory {
-    actor1.underlyingActor.sendCall(actor2, "foo")
-    actor2.underlyingActor.lastType should equal('CALL)
-    actor2.underlyingActor.lastMessage should be("foo")
-  }
-
   "PlainRpc.cast" should "include 'CAST" in new Factory {
     actor1.underlyingActor.cast(actor2, "bar")
     actor2.underlyingActor.lastType should equal('CAST)
