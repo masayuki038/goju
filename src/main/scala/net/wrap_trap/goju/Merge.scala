@@ -13,13 +13,6 @@ import scala.concurrent.duration._
   * This software is released under the MIT License.
   * http://opensource.org/licenses/mit-license.php
   */
-object Merge {
-  def start(owner: ActorRef, aPath: String, bPath: String, cPath: String, size: Int, isLastLevel: Boolean): ActorRef = {
-    val system = ActorSystem("system")
-    system.actorOf(Props(classOf[Merge], owner, aPath, bPath, cPath, size, isLastLevel))
-  }
-}
-
 class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPath: String, val size: Int, val isLastLevel: Boolean) extends Actor with PlainRpc {
   val aReader = SequentialReader.open(aPath)
   val bReader = SequentialReader.open(bPath)

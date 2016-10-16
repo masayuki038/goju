@@ -2,10 +2,11 @@ package net.wrap_trap.goju
 
 import java.io.File
 
-import akka.actor.{Actor, Props, ActorContext, ActorRef}
+import akka.actor.{Actor, ActorContext, ActorRef, Props}
 import akka.util.Timeout
 import com.typesafe.scalalogging.Logger
 import org.slf4j.LoggerFactory
+
 import scala.concurrent.duration._
 
 /**
@@ -98,6 +99,14 @@ class Level(val dirPath: String, val level: Int, val owner: ActorRef) extends Ac
   var mergePid: Option[ActorRef] = None
   var next: Option[ActorRef] = None
 
+  var mergeRef: Option[ActorRef] = None
+  var wip: Option[Int] = None
+  var workDone = 0
+
+  override def preStart(): Unit = {
+    initialize()
+  }
+
   private def initialize(): Unit = {
     Utils.ensureExpiry
     val aFileName = filename("A")
@@ -165,9 +174,32 @@ class Level(val dirPath: String, val level: Int, val owner: ActorRef) extends Ac
 
   private def checkBeginMergeThenLoop0(): Unit = {
     if(aReader.isDefined && bReader.isDefined && mergePid.isEmpty) {
-      val pid = beginMerge()
+      val merger = beginMerge()
+      val watcher = context.watch(merger)
 
+      val progress = this.cReader match {
+        case Some(r) => 2 * Utils.btreeSize(this.level)
+        case _ => Utils.btreeSize(this.level)
+      }
+      merger ! (Step, (self, watcher), progress)
+
+      this.mergePid = Option(merger)
+      this.mergeRef = Option(watcher)
+      this.wip = Option(progress)
+      this.workDone = 0
+      mainLoop()
+    } else {
+      checkBeginMergeThenLoop()
     }
+  }
+
+  private def checkBeginMergeThenLoop(): Unit = {
+    if(aReader.isDefined && bReader.isDefined && mergePid.isEmpty) {
+      val merger = beginMerge()
+      this.mergePid = Option(merger)
+      this.workDone = 0
+    }
+    mainLoop()
   }
 
   private def beginMerge(): ActorRef = {
@@ -177,10 +209,10 @@ class Level(val dirPath: String, val level: Int, val owner: ActorRef) extends Ac
 
     Utils.deleteFile(xFileName)
 
-    Merge.start(self, aFileName, bFileName, xFileName, Utils.btreeSize(this.level), next.isEmpty)
+    context.actorOf(
+      Props(classOf[Merge], self, aFileName, bFileName, xFileName, Utils.btreeSize(this.level + 1), next.isEmpty)
+    )
   }
-
-
 
   private def filename(prefix: String): String = {
     "%s%s%s-%d.data".format(dirPath, File.separator, prefix, this.level)
