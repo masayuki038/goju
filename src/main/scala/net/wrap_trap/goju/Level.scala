@@ -2,9 +2,10 @@ package net.wrap_trap.goju
 
 import java.io.File
 
-import akka.actor.{Actor, ActorContext, ActorRef, Props}
+import akka.actor._
 import akka.util.Timeout
 import com.typesafe.scalalogging.Logger
+import net.wrap_trap.goju.Constants.Value
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.duration._
@@ -36,7 +37,7 @@ object Level extends PlainRpc {
     call(ref, (Lookup, key))
   }
 
-  def lookup(ref: ActorRef, key: Array[Byte], f: (Array[Byte]) => Any): Unit = {
+  def lookup(ref: ActorRef, key: Array[Byte], f: Option[Value] => Unit): Unit = {
     cast(ref, (Lookup, key, f))
   }
 
@@ -97,11 +98,16 @@ class Level(val dirPath: String, val level: Int, val owner: ActorRef) extends Ac
   var bReader: Option[RandomReader] = None
   var cReader: Option[RandomReader] = None
   var mergePid: Option[ActorRef] = None
+
   var next: Option[ActorRef] = None
 
-  var mergeRef: Option[ActorRef] = None
   var wip: Option[Int] = None
   var workDone = 0
+  var maxLevel = 0
+
+  var stepMergeRef: Option[ActorRef] = None
+  var stepNextRef: Option[ActorRef] = None
+  var stepCaller: Option[ActorRef] = None
 
   override def preStart(): Unit = {
     initialize()
@@ -184,7 +190,7 @@ class Level(val dirPath: String, val level: Int, val owner: ActorRef) extends Ac
       merger ! (Step, (self, watcher), progress)
 
       this.mergePid = Option(merger)
-      this.mergeRef = Option(watcher)
+      this.stepMergeRef = Option(watcher)
       this.wip = Option(progress)
       this.workDone = 0
       mainLoop()
@@ -219,7 +225,180 @@ class Level(val dirPath: String, val level: Int, val owner: ActorRef) extends Ac
   }
 
   def receive = {
-    ???
+    case (PlainRpcProtocol.call, (Lookup, key: Array[Byte])) => {
+      doLookup(key, List(this.cReader, this.bReader, this.aReader), this.next) match {
+        case NotFound => sendReply(sender(), NotFound)
+        case (Found, value) => sendReply(sender(), value)
+        case (Delegate, pid: ActorRef) => pid ! (PlainRpcProtocol.call, (Lookup, key))
+      }
+    }
+    case (PlainRpcProtocol.cast, (Lookup, key: Array[Byte], f: (Option[Value] => Unit))) => {
+      doLookup(key, List(this.cReader, this.bReader, this.aReader), this.next) match {
+        case NotFound => f(None)
+        case (Found, value: Option[Value]) => f(value)
+        case (Delegate, pid: ActorRef) => pid ! (PlainRpcProtocol.call, (Lookup, key, f))
+      }
+    }
+    case (PlainRpcProtocol.call, (Inject, fileName: String)) => {
+      val (toFileName, pos) = (this.aReader, this.bReader) match {
+        case (None, None) => (filename("A"), 1)
+        case (_, None) => (filename("B"), 2)
+        case (None, _) => (filename("C"), 3)
+      }
+
+      Utils.renameFile(fileName, toFileName)
+      sendReply(sender(), true)
+
+      val newReader = Option(RandomReader.open(toFileName))
+      pos match {
+        case 1 => this.aReader = newReader
+        case 2 => {
+          this.bReader = newReader
+          checkBeginMergeThenLoop()
+        }
+        case 3 => this.cReader = newReader
+      }
+    }
+    case (PlainRpcProtocol.call, UnmergedCount) => sendReply(sender(), totalUnmerged)
+    case (PlainRpcProtocol.cast, (SetMaxLevel, max: Int)) => {
+      if(next.isDefined) {
+        Level.setMaxLevel(next.get, max)
+      }
+      this.maxLevel = max
+    }
+    case (PlainRpcProtocol.call, (BeginIncrementalMerge, stepSize: Int))
+      if (this.stepMergeRef.isEmpty && this.stepNextRef.isEmpty) => {
+      sendReply(sender(), true)
+      doStep(None, 0, stepSize)
+    }
+    case (PlainRpcProtocol.call, AwaitIncrementalMerge)
+      if (this.stepMergeRef.isEmpty && this.stepNextRef.isEmpty) => {
+      sendReply(sender(), true)
+    }
+    case (PlainRpcProtocol.call, (StepLevel, doneWork: Int, stepSize: Int))
+      if (this.stepMergeRef.isEmpty && this.stepCaller.isEmpty && this.stepNextRef.isEmpty) => {
+      doStep(Option(sender()), doneWork, stepSize)
+    }
+    case (PlainRpcProtocol.call, Query) => {
+      sendReply(sender(), this.level)
+    }
+    case (monitorRef: ActorRef, StepDone) if monitorRef == this.stepMergeRef => {
+      context.unwatch(monitorRef)
+      this.wip match {
+        case Some(w) => {
+          this.workDone += w
+          this.wip = Option(0)
+        }
+      }
+      this.stepNextRef match {
+        case Some(_) => // do nothing
+        case None => replyStepOk()
+      }
+      this.stepMergeRef = None
+    }
+    case e: Terminated if e.actor == this.mergePid => {
+      this.stepNextRef match {
+        case Some(_) => // do nothing
+        case None => replyStepOk()
+      }
+      this.stepMergeRef = None
+      this.wip = Option(0)
+    }
+    case (PlainRpcProtocol.reply, (StepOk, monitorRef: Option[ActorRef]))
+      if(monitorRef == this.stepNextRef && this.stepMergeRef.isEmpty) => {
+      monitorRef match {
+        case Some(m) => context.unwatch(m)
+      }
+      this.stepNextRef = None
+    }
+  }
+
+  private def doStep(stepFrom: Option[ActorRef], previousWork: Int, stepSize: Int): Unit = {
+    var workLeftHere = 0
+    if(this.bReader.isDefined && this.mergePid.isDefined) {
+      workLeftHere = Math.max(0, (2 * Utils.btreeSize(this.level)) - this.workDone)
+    }
+    val workUnit = stepSize
+    val maxLevel = Math.max(this.maxLevel, this.level)
+    val depth = maxLevel - Constants.TOP_LEVEL + 1
+    val totalWork = depth * workDone
+    val workUnitsLeft = Math.max(0, totalWork - previousWork)
+
+    val workToDoHere = Settings.getSettings().getInt("merge.strategy", 1) match {
+      case Constants.MERGE_STRATEGY_FAST => Math.min(workLeftHere, workUnit)
+      case Constants.MERGE_STRATEGY_PREDICTABLE => {
+        if(workLeftHere < depth * workUnit) {
+          Math.min(workLeftHere, workUnit)
+        } else {
+          Math.min(workLeftHere, workUnitsLeft)
+        }
+      }
+    }
+
+    val workIncludingHere = previousWork + workToDoHere
+
+    val delegateRef = this.next match {
+      case None => None
+      case Some(n) => Option(sendCall(n, context, (StepLevel, workIncludingHere, stepSize)))
+    }
+
+    val mergeRef = (workToDoHere > 0) match {
+      case true => {
+        this.mergePid match {
+          case Some(pid) => {
+            val monitor = context.watch(pid)
+            pid ! (Step, monitor, workToDoHere)
+            Option(monitor)
+          }
+        }
+      }
+      case false => None
+    }
+
+    if(delegateRef.isEmpty && mergeRef.isEmpty) {
+      this.stepCaller = stepFrom
+      replyStepOk()
+    } else {
+      this.stepNextRef = delegateRef
+      this.stepCaller = stepFrom
+      this.stepMergeRef = mergeRef
+      this.wip = Option(workToDoHere)
+    }
+  }
+
+  private def replyStepOk(): Unit = {
+    this.stepCaller match {
+      case Some(caller) => sendReply(caller, StepOk)
+      case None => // do nothing
+    }
+    this.stepCaller = None
+  }
+
+  private def totalUnmerged(): Int = {
+    val files = this.bReader match {
+      case Some(_) => 2
+      case _ => 0
+    }
+    files * Utils.btreeSize(this.level)
+  }
+
+  private def doLookup(key: Array[Byte], list: List[Option[RandomReader]], next: Option[ActorRef]): Any = {
+    list match {
+      case () => next match {
+        case Some(pid) => (Delegate, pid)
+        case _ => NotFound
+      }
+      case List(None, _*) => doLookup(key, list.tail, next)
+      case List(Some(reader), _*) => {
+        reader.lookup(key) match {
+          case Some(v) => v
+          case None => {
+            // TODO if value is tombstoned, stopping to call doLoockup recursively and return None
+            doLookup(key, list.tail, next)
+          }
+        }
+      }
+    }
   }
 }
 
@@ -235,6 +414,15 @@ case object Close extends LevelOp
 case object Destroy extends LevelOp
 case object InitSnapshotRangeFold extends LevelOp
 case object InitBlockingRangeFold extends LevelOp
+
+case object StepLevel extends LevelOp
+case object StepDone extends LevelOp
+case object StepOk extends LevelOp
+
+sealed abstract class LookupResponse
+case object NotFound extends LookupResponse
+case object Found extends LookupResponse
+case object Delegate extends LookupResponse
 
 sealed abstract class FoldWorkerOp
 case object Initialize extends FoldWorkerOp

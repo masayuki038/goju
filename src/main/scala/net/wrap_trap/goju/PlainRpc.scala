@@ -1,6 +1,6 @@
 package net.wrap_trap.goju
 
-import akka.actor.{Actor, ActorRef}
+import akka.actor.{ActorContext, Actor, ActorRef}
 import akka.pattern.ask
 import akka.util.Timeout
 import net.wrap_trap.goju.PlainRpcProtocol._
@@ -16,8 +16,10 @@ import scala.concurrent.Await
   * http://opensource.org/licenses/mit-license.php
   */
 trait PlainRpc {
-  def sendCall(pid: ActorRef, msg: Any) = {
-    pid ! CALL(msg)
+  def sendCall(pid: ActorRef, context: ActorContext, msg: Any): ActorRef = {
+    val monitor = context.watch(pid)
+    pid ! CALL((monitor, msg))
+    monitor
   }
 
   def cast(pid: ActorRef, msg: Any) = {

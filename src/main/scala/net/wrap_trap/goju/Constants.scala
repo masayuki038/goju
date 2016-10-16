@@ -17,6 +17,8 @@ object Constants {
   val FILE_FORMAT = "HAN2"
   val FIRST_BLOCK_POS: Long = FILE_FORMAT.getBytes.size
 
+  val TOP_LEVEL = 8
+
   val TAG_KV_DATA = 0x80.asInstanceOf[Byte]
   val TAG_DELETED = 0x81.asInstanceOf[Byte]
   val TAG_POSLEN = 0x82.asInstanceOf[Byte]
@@ -32,4 +34,7 @@ object Constants {
   val SIZE_OF_LEN = 4
 
   val COMPRESS_PLAIN = 0x00.asInstanceOf[Byte]
+
+  val MERGE_STRATEGY_FAST = 1
+  val MERGE_STRATEGY_PREDICTABLE = 2
 }
