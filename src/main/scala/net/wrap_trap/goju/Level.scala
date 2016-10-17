@@ -108,6 +108,8 @@ class Level(val dirPath: String, val level: Int, val owner: ActorRef) extends Ac
   var stepNextRef: Option[ActorRef] = None
   var stepCaller: Option[ActorRef] = None
 
+  var folding: List[ActorRef] = List.empty[ActorRef]
+
   override def preStart(): Unit = {
     initialize()
   }
@@ -306,6 +308,56 @@ class Level(val dirPath: String, val level: Int, val owner: ActorRef) extends Ac
       if((this.stepNextRef.isDefined && monitorRef == this.stepNextRef.get) && this.stepMergeRef.isEmpty) => {
       context.unwatch(monitorRef)
       this.stepNextRef = None
+    }
+    case (PlainRpcProtocol.call, Close) => {
+      closeIfDefined(this.aReader)
+      closeIfDefined(this.bReader)
+      closeIfDefined(this.cReader)
+      val list = this.stepMergeRef match {
+        case Some(s) => s :: folding
+        case _ => folding
+      }
+      list.foreach(p => context.stop(p))
+      this.folding = List.empty[ActorRef]
+      this.stepMergeRef = None
+
+      this.next match {
+        case Some(n) => Level.close(n)
+        case _ => // do nothing
+      }
+      sendReply(sender(), true)
+    }
+    case (PlainRpcProtocol.call, Destroy) => {
+      destroyIfDefined(this.aReader)
+      destroyIfDefined(this.bReader)
+      destroyIfDefined(this.cReader)
+      val list = this.stepMergeRef match {
+        case Some(s) => s :: folding
+        case _ => folding
+      }
+      list.foreach(p => context.stop(p))
+
+      this.next match {
+        case Some(n) => Level.destroy(n)
+        case _ => // do nothing
+      }
+      sendReply(sender(), true)
+      context.stop(self)
+    }
+  }
+
+
+  private def destroyIfDefined(reader: Option[RandomReader]): Unit = {
+    reader match {
+      case Some(r) => r.destroy
+      case _ => // do nothing
+    }
+  }
+
+  private def closeIfDefined(reader: Option[RandomReader]): Unit = {
+    reader match {
+      case Some(r) => r.close
+      case _ => // do nothing
     }
   }
 
