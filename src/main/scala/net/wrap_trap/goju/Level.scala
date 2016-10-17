@@ -97,7 +97,6 @@ class Level(val dirPath: String, val level: Int, val owner: ActorRef) extends Ac
   var aReader: Option[RandomReader] = None
   var bReader: Option[RandomReader] = None
   var cReader: Option[RandomReader] = None
-  var mergePid: Option[ActorRef] = None
 
   var next: Option[ActorRef] = None
 
@@ -179,7 +178,7 @@ class Level(val dirPath: String, val level: Int, val owner: ActorRef) extends Ac
   }
 
   private def checkBeginMergeThenLoop0(): Unit = {
-    if(aReader.isDefined && bReader.isDefined && mergePid.isEmpty) {
+    if(aReader.isDefined && bReader.isDefined && stepMergeRef.isEmpty) {
       val merger = beginMerge()
       val watcher = context.watch(merger)
 
@@ -189,7 +188,6 @@ class Level(val dirPath: String, val level: Int, val owner: ActorRef) extends Ac
       }
       merger ! (Step, (self, watcher), progress)
 
-      this.mergePid = Option(merger)
       this.stepMergeRef = Option(watcher)
       this.wip = Option(progress)
       this.workDone = 0
@@ -200,9 +198,9 @@ class Level(val dirPath: String, val level: Int, val owner: ActorRef) extends Ac
   }
 
   private def checkBeginMergeThenLoop(): Unit = {
-    if(aReader.isDefined && bReader.isDefined && mergePid.isEmpty) {
+    if(aReader.isDefined && bReader.isDefined && stepMergeRef.isEmpty) {
       val merger = beginMerge()
-      this.mergePid = Option(merger)
+      this.stepMergeRef = Option(merger)
       this.workDone = 0
     }
     mainLoop()
@@ -282,7 +280,7 @@ class Level(val dirPath: String, val level: Int, val owner: ActorRef) extends Ac
     case (PlainRpcProtocol.call, Query) => {
       sendReply(sender(), this.level)
     }
-    case (monitorRef: ActorRef, StepDone) if monitorRef == this.stepMergeRef => {
+    case (monitorRef: ActorRef, StepDone) if (this.stepMergeRef.isDefined && monitorRef == this.stepMergeRef.get) => {
       context.unwatch(monitorRef)
       this.wip match {
         case Some(w) => {
@@ -296,7 +294,7 @@ class Level(val dirPath: String, val level: Int, val owner: ActorRef) extends Ac
       }
       this.stepMergeRef = None
     }
-    case e: Terminated if e.actor == this.mergePid => {
+    case e: Terminated if (this.stepMergeRef.isDefined && e.actor == this.stepMergeRef.get) => {
       this.stepNextRef match {
         case Some(_) => // do nothing
         case None => replyStepOk()
@@ -304,18 +302,16 @@ class Level(val dirPath: String, val level: Int, val owner: ActorRef) extends Ac
       this.stepMergeRef = None
       this.wip = Option(0)
     }
-    case (PlainRpcProtocol.reply, (StepOk, monitorRef: Option[ActorRef]))
-      if(monitorRef == this.stepNextRef && this.stepMergeRef.isEmpty) => {
-      monitorRef match {
-        case Some(m) => context.unwatch(m)
-      }
+    case (PlainRpcProtocol.reply, (StepOk, monitorRef: ActorRef))
+      if((this.stepNextRef.isDefined && monitorRef == this.stepNextRef.get) && this.stepMergeRef.isEmpty) => {
+      context.unwatch(monitorRef)
       this.stepNextRef = None
     }
   }
 
   private def doStep(stepFrom: Option[ActorRef], previousWork: Int, stepSize: Int): Unit = {
     var workLeftHere = 0
-    if(this.bReader.isDefined && this.mergePid.isDefined) {
+    if(this.bReader.isDefined && this.stepMergeRef.isDefined) {
       workLeftHere = Math.max(0, (2 * Utils.btreeSize(this.level)) - this.workDone)
     }
     val workUnit = stepSize
@@ -344,7 +340,7 @@ class Level(val dirPath: String, val level: Int, val owner: ActorRef) extends Ac
 
     val mergeRef = (workToDoHere > 0) match {
       case true => {
-        this.mergePid match {
+        this.stepMergeRef match {
           case Some(pid) => {
             val monitor = context.watch(pid)
             pid ! (Step, monitor, workToDoHere)
