@@ -87,10 +87,10 @@ class RandomReader(val name: String) extends Reader {
     }
   }
 
-  def rangeFold(func: (Element, List[Value]) => List[Value],
-                acc0: List[Value],
+  def rangeFold(func: (Element, (Int, List[Value])) => (Int, List[Value]),
+                acc0: (Int, List[Value]),
                 range: KeyRange
-               ): List[Value] = {
+               ): (Int, List[Value]) = {
     range.fromKey <= firstKey(this.root.get) match {
       case true => {
         this.randomAccessFile.seek(Constants.FIRST_BLOCK_POS)
@@ -110,10 +110,10 @@ class RandomReader(val name: String) extends Reader {
     }
   }
 
-  def rangeFoldFromHere(func: (Element, List[Value]) => List[Value],
-                        acc0: List[Value],
+  def rangeFoldFromHere(func: (Element, (Int, List[Value])) => (Int, List[Value]),
+                        acc0: (Int, List[Value]),
                         range: KeyRange,
-                        limit: Int): List[Value] = {
+                        limit: Int): (Int, List[Value]) = {
     nextLeafNode() match {
       case None => acc0
       case Some(node) => {
@@ -279,21 +279,21 @@ class RandomReader(val name: String) extends Reader {
   }
 
   private def firstKey(node: ReaderNode): Key = {
-    foldUntilStop((keyValue, _, _) => (Stop, List(keyValue), 0), List.empty[Element], 1, node.members) match {
-      case (Stopped, List(KeyValue(k: Key, _, _), _*), _) => k
+    foldUntilStop((keyValue, _, _) => (Stop, (0, List(keyValue)), 0), (1, List.empty[Element]), 1, node.members) match {
+      case (Stopped, (_, List(KeyValue(k: Key, _, _), _*)), _) => k
     }
   }
 
-  private def foldUntilStop(func: (Element, List[Value], Int) => (FoldStatus, List[Value], Int),
-                            acc: List[Value],
+  private def foldUntilStop(func: (Element, (Int, List[Value]), Int) => (FoldStatus, (Int, List[Value]), Int),
+                            acc: (Int, List[Value]),
                             limit: Int,
-                            members: List[Element]): (FoldStatus, List[Value], Int) = {
+                            members: List[Element]): (FoldStatus, (Int, List[Value]), Int) = {
     foldUntilStop2(func, (Continue, acc, limit), members)
   }
 
-  private def foldUntilStop2(func: (Element, List[Value], Int) => (FoldStatus, List[Value], Int),
-                             accWithStatus: (FoldStatus, List[Value], Int),
-                             members: List[Element]): (FoldStatus, List[Value], Int) = {
+  private def foldUntilStop2(func: (Element, (Int, List[Value]), Int) => (FoldStatus, (Int, List[Value]), Int),
+                             accWithStatus: (FoldStatus, (Int,  List[Value]), Int),
+                             members: List[Element]): (FoldStatus, (Int, List[Value]), Int) = {
     accWithStatus match {
       case (Stop, result, limit) => (Stopped, result, limit)
       case (Continue, acc, limit) if members.length == 0 => (Ok, acc, limit)

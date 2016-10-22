@@ -1,6 +1,7 @@
 package net.wrap_trap.goju
 
 import java.io.File
+import java.nio.file.{Paths, Path, Files}
 
 import akka.actor._
 import akka.util.Timeout
@@ -344,6 +345,21 @@ class Level(val dirPath: String, val level: Int, val owner: ActorRef) extends Ac
       sendReply(sender(), true)
       context.stop(self)
     }
+    case (PlainRpcProtocol.call, (InitSnapshotRangeFold, workerPid: ActorRef, range: KeyRange, list: List[ActorRef]))
+      if(this.folding.isEmpty) => {
+      val (nextList, foldingPids) = (this.aReader, this.bReader, this.cReader) match {
+        case (None, None, None) => (list, List.empty[ActorRef])
+        case (_, None, None) => {
+          Files.createLink(Paths.get(filename("A")), Paths.get(filename("AF")))
+          val pid0 = startRangeFold(filename("AF"), workerPid, range)
+        }
+
+      }
+    }
+  }
+
+  private def startRangeFold(path: String, workerPid: ActorRef, range: KeyRange): ActorRef = {
+    null
   }
 
 
@@ -462,6 +478,7 @@ case object Close extends LevelOp
 case object Destroy extends LevelOp
 case object InitSnapshotRangeFold extends LevelOp
 case object InitBlockingRangeFold extends LevelOp
+case object LevelResults extends LevelOp
 
 case object StepLevel extends LevelOp
 case object StepDone extends LevelOp

@@ -16,7 +16,7 @@ object Constants {
   val TOMBSTONE = Utils.toBytes("deleted")
   val FILE_FORMAT = "HAN2"
   val FIRST_BLOCK_POS: Long = FILE_FORMAT.getBytes.size
-
+  val FOLD_CHUNK_SIZE = 100;
   val TOP_LEVEL = 8
 
   val TAG_KV_DATA = 0x80.asInstanceOf[Byte]
