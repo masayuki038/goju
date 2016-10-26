@@ -352,14 +352,36 @@ class Level(val dirPath: String, val level: Int, val owner: ActorRef) extends Ac
         case (_, None, None) => {
           Files.createLink(Paths.get(filename("A")), Paths.get(filename("AF")))
           val pid0 = startRangeFold(filename("AF"), workerPid, range)
+          (pid0 :: list, List(pid0))
         }
-
+        case (_, _, None) => {
+          Files.createLink(Paths.get(filename("A")), Paths.get(filename("AF")))
+          val pidA = startRangeFold(filename("AF"), workerPid, range)
+          Files.createLink(Paths.get(filename("B")), Paths.get(filename("BF")))
+          val pidB = startRangeFold(filename("BF"), workerPid, range)
+          (List(pidA, pidB) ::: list, List(pidB, pidA))
+        }
+        case (_, _, _) => {
+          Files.createLink(Paths.get(filename("A")), Paths.get(filename("AF")))
+          val pidA = startRangeFold(filename("AF"), workerPid, range)
+          Files.createLink(Paths.get(filename("B")), Paths.get(filename("BF")))
+          val pidB = startRangeFold(filename("BF"), workerPid, range)
+          Files.createLink(Paths.get(filename("C")), Paths.get(filename("CF")))
+          val pidC = startRangeFold(filename("CF"), workerPid, range)
+          (List(pidA, pidB, pidC) ::: list, List(pidC, pidB, pidA))
+        }
       }
+
+      this.next match {
+        case Some(n) =>sender() ! (PlainRpcProtocol.call, (InitSnapshotRangeFold, workerPid, range, nextList))
+        case _ => sendReply(sender(), (Ok, nextList.reverse))
+      }
+      this.folding = foldingPids
     }
   }
 
   private def startRangeFold(path: String, workerPid: ActorRef, range: KeyRange): ActorRef = {
-    null
+    context.actorOf(Props(classOf[RangeFolder], path, workerPid, sender(), range))
   }
 
 
@@ -479,6 +501,7 @@ case object Destroy extends LevelOp
 case object InitSnapshotRangeFold extends LevelOp
 case object InitBlockingRangeFold extends LevelOp
 case object LevelResults extends LevelOp
+case object RangeFoldDone
 
 case object StepLevel extends LevelOp
 case object StepDone extends LevelOp
