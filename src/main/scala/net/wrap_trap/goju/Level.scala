@@ -7,6 +7,7 @@ import akka.actor._
 import akka.util.Timeout
 import com.typesafe.scalalogging.Logger
 import net.wrap_trap.goju.Constants.Value
+import net.wrap_trap.goju.element.Element
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.duration._
@@ -378,12 +379,30 @@ class Level(val dirPath: String, val level: Int, val owner: ActorRef) extends Ac
       }
       this.folding = foldingPids
     }
+    case (RangeFoldDone, pid: ActorRef, filePath: String) => {
+      Utils.deleteFile(filePath)
+      this.folding = this.folding.filter(p => p != pid)
+    }
+  }
+
+  private def doRangeFold(reader: RandomReader, workerPid: ActorRef, selfOrRef: ActorRef, range: KeyRange): Unit = {
+    val (_, values) = reader.rangeFold((e, acc0) => {
+        workerPid ! (LevelResult, selfOrRef, e)
+        acc0
+      },
+      (100, List.empty[Element]),
+      range
+    )
+
+    values.length match {
+      case range.limit => workerPid ! (LevelLimit, selfOrRef)
+      case _ => workerPid ! (LevelDone, selfOrRef)
+    }
   }
 
   private def startRangeFold(path: String, workerPid: ActorRef, range: KeyRange): ActorRef = {
     context.actorOf(Props(classOf[RangeFolder], path, workerPid, sender(), range))
   }
-
 
   private def destroyIfDefined(reader: Option[RandomReader]): Unit = {
     reader match {
@@ -500,8 +519,11 @@ case object Close extends LevelOp
 case object Destroy extends LevelOp
 case object InitSnapshotRangeFold extends LevelOp
 case object InitBlockingRangeFold extends LevelOp
+case object LevelResult extends LevelOp
 case object LevelResults extends LevelOp
-case object RangeFoldDone
+case object RangeFoldDone extends LevelOp
+case object LevelLimit extends LevelOp
+case object LevelDone extends LevelOp
 
 case object StepLevel extends LevelOp
 case object StepDone extends LevelOp

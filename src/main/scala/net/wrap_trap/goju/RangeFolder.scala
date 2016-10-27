@@ -16,16 +16,16 @@ import scala.concurrent.duration._
   * This software is released under the MIT License.
   * http://opensource.org/licenses/mit-license.php
   */
-class RangeFolder(fileName: String, workerPid: ActorRef, owner: ActorRef, range: KeyRange) extends Actor with PlainRpc {
+class RangeFolder(filePath: String, workerPid: ActorRef, owner: ActorRef, range: KeyRange) extends Actor with PlainRpc {
   val callTimeout = Settings.getSettings().getInt("goju.level.call_timeout", 300)
   implicit val timeout = Timeout(callTimeout seconds)
 
   override def preStart() = {
-    val reader = RandomReader.open(fileName)
+    val reader = RandomReader.open(filePath)
     doRangeFold2(reader, workerPid, self, range)
     reader.close()
 
-    owner ! (RangeFoldDone, self, fileName)
+    owner ! (RangeFoldDone, self, filePath)
   }
 
   private def doRangeFold2(reader: RandomReader, workderPid: ActorRef, selfOrRef: ActorRef, range: KeyRange): Unit = {
