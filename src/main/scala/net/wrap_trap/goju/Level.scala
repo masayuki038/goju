@@ -475,6 +475,22 @@ class Level(val dirPath: String, val level: Int, val owner: ActorRef) extends Ac
         }
       }
     }
+    case (PlainRpcProtocol.reply, (mRef: ActorRef, Ok)) => {
+      this.context.unwatch(mRef)
+      closeAndDeleteAAndB()
+      this.cReader match {
+        case None => // do nothing
+        case Some(reader) => {
+          Utils.renameFile(filename("C"), filename("A"))
+          this.aReader = this.cReader
+          this.bReader = None
+          this.cReader = None
+        }
+      }
+    }
+    case Terminated(mRef) if mRef == this.injectDoneRef => {
+      throw new IllegalStateException("injectDoneRef has down")
+    }
   }
 
   private def closeAndDeleteAAndB(): Unit = {
