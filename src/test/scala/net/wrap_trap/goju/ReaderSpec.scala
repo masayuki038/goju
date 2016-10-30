@@ -69,7 +69,7 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
         }
       },
       (100, List.empty[Element]),
-      KeyRange(Key(Utils.toBytes("fon")), false, Key(Utils.toBytes("hogf")), false, Integer.MAX_VALUE))
+      KeyRange(Key(Utils.toBytes("fon")), false, Option(Key(Utils.toBytes("hogf"))), false, Integer.MAX_VALUE))
     list.size should be(2)
     list.find(p => p == "bar") should be(Some("bar"))
     list.find(p => p == "hogehoge") should be(Some("hogehoge"))
@@ -87,7 +87,7 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
         }
       },
       (100, List.empty[Element]),
-      KeyRange(Key(Utils.toBytes("foo")), true, Key(Utils.toBytes("hoge")), true, Integer.MAX_VALUE))
+      KeyRange(Key(Utils.toBytes("foo")), true, Option(Key(Utils.toBytes("hoge"))), true, Integer.MAX_VALUE))
     list.size should be(2)
     list.find(p => p == "bar") should be(Some("bar"))
     list.find(p => p == "hogehoge") should be(Some("hogehoge"))
@@ -105,7 +105,7 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
         }
       },
       (100, List.empty[Element]),
-      KeyRange(Key(Utils.toBytes("foo")), false, Key(Utils.toBytes("hoge")), false, Integer.MAX_VALUE))
+      KeyRange(Key(Utils.toBytes("foo")), false, Option(Key(Utils.toBytes("hoge"))), false, Integer.MAX_VALUE))
     list.size should be(0)
     reader.destroy
   }
@@ -121,9 +121,27 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
         }
       },
       (100, List.empty[Element]),
-      KeyRange(Key(Utils.toBytes("foo")), true, Key(Utils.toBytes("hoge")), false, Integer.MAX_VALUE))
+      KeyRange(Key(Utils.toBytes("foo")), true, Option(Key(Utils.toBytes("hoge"))), false, Integer.MAX_VALUE))
     list.size should be(1)
     list.find(p => p == "bar") should be(Some("bar"))
+    reader.destroy
+  }
+
+  "rangeFold" should "return 'bar' and 'hogehoge' when toKey is None" in writtenByRandom { fileName =>
+    val reader = RandomReader.open(fileName)
+    val (_, list) = reader.rangeFold((e, acc0) => {
+      e match {
+        case KeyValue(_, v, _) => {
+          val (foldChunkSize, acc) = acc0
+          (foldChunkSize, v :: acc)
+        }
+      }
+    },
+      (100, List.empty[Element]),
+      KeyRange(Key(Utils.toBytes("foo")), true, None, false, Integer.MAX_VALUE))
+    list.size should be(2)
+    list.find(p => p == "bar") should be(Some("bar"))
+    list.find(p => p == "hogehoge") should be(Some("hogehoge"))
     reader.destroy
   }
 
@@ -138,7 +156,24 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
         }
       },
       (100, List.empty[Element]),
-      KeyRange(Key(Utils.toBytes("foo")), false, Key(Utils.toBytes("hoge")), true, Integer.MAX_VALUE))
+      KeyRange(Key(Utils.toBytes("foo")), false, Option(Key(Utils.toBytes("hoge"))), true, Integer.MAX_VALUE))
+    list.size should be(1)
+    list.find(p => p == "hogehoge") should be(Some("hogehoge"))
+    reader.destroy
+  }
+
+  "rangeFold" should "return 'hogehoge' when toKey is None" in writtenByRandom { fileName =>
+    val reader = RandomReader.open(fileName)
+    val (_, list) = reader.rangeFold((e, acc0) => {
+      e match {
+        case KeyValue(_, v, _) => {
+          val (foldChunkSize, acc) = acc0
+          (foldChunkSize, v :: acc)
+        }
+      }
+    },
+      (100, List.empty[Element]),
+      KeyRange(Key(Utils.toBytes("foo")), false, None, true, Integer.MAX_VALUE))
     list.size should be(1)
     list.find(p => p == "hogehoge") should be(Some("hogehoge"))
     reader.destroy

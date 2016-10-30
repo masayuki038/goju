@@ -10,22 +10,32 @@ package net.wrap_trap.goju
   */
 case class KeyRange(val fromKey: Key,
                     val fromInclude: Boolean,
-                    val toKey: Key,
+                    val toKey: Option[Key],
                     val toInclude: Boolean,
                     val limit: Int) {
   def keyInFromRange(thatKey: Key): Boolean = {
-    if(fromInclude) {
-      fromKey <= thatKey
-    } else {
-      fromKey < thatKey
+    this.fromKey.bytes.length match {
+      case 0 => true
+      case _ => {
+        if (fromInclude) {
+          fromKey <= thatKey
+        } else {
+          fromKey < thatKey
+        }
+      }
     }
   }
 
   def keyInToRange(thatKey: Key): Boolean = {
-    if(toInclude) {
-      toKey >= thatKey
-    } else {
-      toKey > thatKey
+    this.toKey match {
+      case Some(to) => {
+        if(toInclude) {
+          to >= thatKey
+        } else {
+          to > thatKey
+        }
+      }
+      case None => true
     }
   }
 }
