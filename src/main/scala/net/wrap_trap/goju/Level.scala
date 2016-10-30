@@ -8,6 +8,8 @@ import akka.util.Timeout
 import com.typesafe.scalalogging.Logger
 import net.wrap_trap.goju.Constants.Value
 import net.wrap_trap.goju.element.Element
+import org.hashids.Hashids
+import org.hashids.syntax._
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.duration._
@@ -95,6 +97,7 @@ object Level extends PlainRpc {
 }
 
 class Level(val dirPath: String, val level: Int, val owner: ActorRef) extends Actor with PlainRpc {
+  implicit val hashids = Hashids.reference(this.hashCode.toString)
 
   var aReader: Option[RandomReader] = None
   var bReader: Option[RandomReader] = None
@@ -383,11 +386,46 @@ class Level(val dirPath: String, val level: Int, val owner: ActorRef) extends Ac
       Utils.deleteFile(filePath)
       this.folding = this.folding.filter(p => p != pid)
     }
+    case (PlainRpcProtocol.call, (InitBlockingRangeFold, workerPid: ActorRef, range: KeyRange, refList: List[String])) => {
+      val newRefList = (this.aReader, this.bReader, this.cReader) match {
+        case (None, None, None) => refList
+        case (Some(a), None, None) => {
+          val aRef = System.nanoTime.hashid
+          doRangeFold(a, workerPid, aRef, range)
+          aRef :: refList
+        }
+        case (Some(a), Some(b), None) => {
+          val aRef = System.nanoTime.hashid
+          doRangeFold(a, workerPid, aRef, range)
+
+          val bRef = System.nanoTime.hashid
+          doRangeFold(b, workerPid, bRef, range)
+
+          List(aRef, bRef) :: refList
+        }
+        case (Some(a), Some(b), Some(c)) => {
+          val aRef = System.nanoTime.hashid
+          doRangeFold(a, workerPid, aRef, range)
+
+          val bRef = System.nanoTime.hashid
+          doRangeFold(b, workerPid, bRef, range)
+
+          val cRef = System.nanoTime.hashid
+          doRangeFold(b, workerPid, cRef, range)
+
+          List(aRef, bRef, cRef) :: refList
+        }
+      }
+      this.next match {
+        case Some(n) =>sender() ! (PlainRpcProtocol.call, (InitBlockingRangeFold, workerPid, range, newRefList))
+        case _ => sendReply(sender(), (Ok, newRefList.reverse))
+      }
+    }
   }
 
-  private def doRangeFold(reader: RandomReader, workerPid: ActorRef, selfOrRef: ActorRef, range: KeyRange): Unit = {
+  private def doRangeFold(reader: RandomReader, workerPid: ActorRef, ref: String, range: KeyRange): Unit = {
     val (_, values) = reader.rangeFold((e, acc0) => {
-        workerPid ! (LevelResult, selfOrRef, e)
+        workerPid ! (LevelResult, ref, e)
         acc0
       },
       (100, List.empty[Element]),
@@ -395,8 +433,8 @@ class Level(val dirPath: String, val level: Int, val owner: ActorRef) extends Ac
     )
 
     values.length match {
-      case range.limit => workerPid ! (LevelLimit, selfOrRef)
-      case _ => workerPid ! (LevelDone, selfOrRef)
+      case range.limit => workerPid ! (LevelLimit, ref)
+      case _ => workerPid ! (LevelDone, ref)
     }
   }
 
