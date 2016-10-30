@@ -112,6 +112,7 @@ class Level(val dirPath: String, val level: Int, val owner: ActorRef) extends Ac
   var stepMergeRef: Option[ActorRef] = None
   var stepNextRef: Option[ActorRef] = None
   var stepCaller: Option[ActorRef] = None
+  var injectDoneRef: Option[ActorRef] = None
 
   var folding: List[ActorRef] = List.empty[ActorRef]
 
@@ -421,6 +422,80 @@ class Level(val dirPath: String, val level: Int, val owner: ActorRef) extends Ac
         case _ => sendReply(sender(), (Ok, newRefList.reverse))
       }
     }
+    case (PlainRpcProtocol.cast, (MergeDone, 0, outFileName: String)) => {
+      Utils.deleteFile(outFileName)
+      closeAndDeleteAAndB()
+
+      this.stepMergeRef = None
+      this.cReader match {
+        case None => // do nothing
+        case Some(reader) => {
+          reader.close
+          val aFileName = filename("A")
+          Utils.renameFile(filename("C"), aFileName)
+          this.aReader = Option(RandomReader.open(aFileName))
+          this.cReader = None
+        }
+      }
+    }
+    case  (PlainRpcProtocol.cast, (MergeDone, count: Int, outFileName: String))
+      if Utils.btreeSize(this.level) >= count && this.cReader.isEmpty && this.next.isEmpty => {
+      val mFileName = filename("M")
+      Utils.renameFile(outFileName, mFileName)
+      closeAndDeleteAAndB()
+
+      val aFileName = filename("A")
+      Utils.renameFile(mFileName, aFileName)
+      this.aReader = Option(RandomReader.open(aFileName))
+
+      this.stepMergeRef = None
+      this.cReader match {
+        case None => this.bReader = None
+        case Some(reader) => {
+          reader.close()
+          val bFileName = filename("B")
+          Utils.renameFile(filename("C"), bFileName)
+          this.bReader = Option(RandomReader.open(bFileName))
+          checkBeginMergeThenLoop()
+        }
+      }
+    }
+    case  (PlainRpcProtocol.cast, (MergeDone, count: Int, outFileName: String)) => {
+      if(next.isEmpty) {
+        val level = Level.open(this.dirPath, this.level + 1, this.owner, context)
+        this.owner ! (BottomLevel, this.level + 1)
+        this.next = Option(level)
+        this.maxLevel = this.level + 1
+      }
+      this.next match {
+        case Some(n) => {
+          val mRef = sendCall(n, this.context, (Inject, outFileName))
+          this.injectDoneRef = Option(mRef)
+          this.stepMergeRef = None
+        }
+      }
+    }
+  }
+
+  private def closeAndDeleteAAndB(): Unit = {
+    val aFileName = filename("A")
+    val bFileName = filename("B")
+
+    this.aReader match {
+      case Some(reader) => reader.close()
+      case _ => // do nohting
+    }
+
+    this.bReader match {
+      case Some(reader) => reader.close()
+      case _ => // do nohting
+    }
+
+    Utils.deleteFile(aFileName)
+    Utils.deleteFile(bFileName)
+
+    this.aReader = None
+    this.bReader = None
   }
 
   private def doRangeFold(reader: RandomReader, workerPid: ActorRef, ref: String, range: KeyRange): Unit = {
@@ -562,6 +637,8 @@ case object LevelResults extends LevelOp
 case object RangeFoldDone extends LevelOp
 case object LevelLimit extends LevelOp
 case object LevelDone extends LevelOp
+case object MergeDone extends LevelOp
+case object BottomLevel extends LevelOp
 
 case object StepLevel extends LevelOp
 case object StepDone extends LevelOp
