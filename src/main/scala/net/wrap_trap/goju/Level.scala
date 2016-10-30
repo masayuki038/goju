@@ -637,7 +637,6 @@ case object LevelResults extends LevelOp
 case object RangeFoldDone extends LevelOp
 case object LevelLimit extends LevelOp
 case object LevelDone extends LevelOp
-case object MergeDone extends LevelOp
 case object BottomLevel extends LevelOp
 
 case object StepLevel extends LevelOp
