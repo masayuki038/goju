@@ -58,7 +58,18 @@ object Goju extends PlainRpc {
   }
 
 //  def fold(ref: ActorRef, func: (Array[Byte], Value, (Int, List[Value])) => (Int, List[Value]), acc0: (Int, List[Value])): List[Value] = {
-//    foldRange(ref, func, acc0, KeyRange())
+//    foldRange(ref, func, acc0, KeyRange(new Key(Array.empty[Byte]), true, None, true, Integer.MAX_VALUE))
+//  }
+
+//  def foldRange(ref: ActorRef,
+//                func: (Array[Byte], Value, (Int, List[Value])) => (Int, List[Value]),
+//                acc0: (Int, List[Value]),
+//                range: KeyRange): List[Value] = {
+//    val rangeType = range.limit < 10 match {
+//      case true => BlockingRange
+//      case false => SnapshotRange
+//    }
+//
 //  }
 }
 
@@ -69,3 +80,7 @@ class Goju(val dirPath: String) {
 sealed abstract class GojuOp
 case object Get extends GojuOp
 case object Transact extends GojuOp
+
+sealed abstract class RangeType
+case object BlockingRange extends RangeType
+case object SnapshotRange extends RangeType

@@ -666,3 +666,4 @@ case object Delegate extends LookupResponse
 
 sealed abstract class FoldWorkerOp
 case object Initialize extends FoldWorkerOp
+case object Prefix extends FoldWorkerOp
