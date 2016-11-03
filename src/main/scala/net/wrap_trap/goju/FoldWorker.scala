@@ -74,12 +74,8 @@ class FoldWorker(val sendTo: ActorRef) extends Actor with PlainRpc {
       case 0 => emitNext()
       case _ => {
         val target = savePids.head
-        refQueues.find(e => {
-          val (k, _) = e
-          k == target
-        }) match {
-          case Some(queuePid) => {
-            val (pid, queue) = queuePid
+        refQueues.find{ case(k, _) => k == target} match {
+          case Some((pid, queue)) => {
             queue.isEmpty match {
               case true => {
                 this.pids = List(pid)
@@ -154,25 +150,13 @@ class FoldWorker(val sendTo: ActorRef) extends Actor with PlainRpc {
   }
 
   private def enter(pid: String, message: Any): Unit = {
-    this.refQueues.find(e => {
-      val (p, _) = e
-      p == pid
-    }).foreach(f => {
-      val (_, queue) = f
-      queue.push(message)
-    })
+    this.refQueues.find{ case (p, _) => p == pid}
+      .foreach{ case (_, queue) => queue.push(message)}
   }
 
   private def enterMany(pid: String, messages: List[Any]) = {
-    this.refQueues.find(e => {
-      val (p, _) = e
-      p == pid
-    }).foreach(f => {
-      val (_, queue) = f
-      for(message <- messages) {
-        queue.push(message)
-      }
-    })
+    this.refQueues.find{ case (p, _) => p == pid}
+      .foreach{ case (_, queue) => for (message <- messages) { queue.push(message) }}
   }
 }
 
