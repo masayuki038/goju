@@ -4,14 +4,13 @@ import java.io.{File, ByteArrayInputStream, ByteArrayOutputStream}
 import java.nio.charset.Charset
 import java.util.zip.CRC32
 
+import akka.actor.ActorSystem
 import com.google.common.primitives.UnsignedBytes
 import com.typesafe.scalalogging.Logger
 import net.wrap_trap.goju.element.Element
 import net.wrap_trap.goju.Helper._
 import org.joda.time.DateTime
 import org.slf4j.LoggerFactory
-
-import scala.collection.concurrent.RDCSS_Descriptor
 
 /**
   * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
@@ -23,6 +22,10 @@ import scala.collection.concurrent.RDCSS_Descriptor
   */
 object Utils {
   val log = Logger(LoggerFactory.getLogger(Utils.getClass))
+
+  lazy val getActorSystem = {
+    ActorSystem("goju")
+  }
 
   def ensureExpiry() = {
     if(!Settings.getSettings.hasPath("goju.expiry_secs")) {

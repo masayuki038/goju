@@ -24,8 +24,7 @@ import net.wrap_trap.goju.Constants._
 object Writer extends PlainRpc {
 
   def open(name: String): ActorRef = {
-    val system = ActorSystem("system")
-    system.actorOf(Props(new Writer(name)))
+    Utils.getActorSystem.actorOf(Props(new Writer(name)))
   }
 
   def add(actorRef: ActorRef, element: Element) = {
