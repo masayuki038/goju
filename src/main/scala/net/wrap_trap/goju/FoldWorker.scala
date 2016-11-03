@@ -1,10 +1,13 @@
 package net.wrap_trap.goju
 
+import akka.util.Timeout
 import net.wrap_trap.goju.Constants.Value
-import net.wrap_trap.goju.element.KeyValue
+import net.wrap_trap.goju.element.{Element, KeyValue}
 
 import scala.collection.mutable.Stack
 import akka.actor.{Terminated, Actor, ActorRef}
+
+import scala.concurrent.duration._
 
 /**
   * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
@@ -20,6 +23,9 @@ class FoldWorker(val sendTo: ActorRef) extends Actor with PlainRpc {
   var refQueues = List.empty[(String, Stack[Any])]
   var pids = List.empty[String]
   var savePids = List.empty[String]
+
+  val callTimeout = Settings.getSettings().getInt("goju.level.call_timeout", 300)
+  implicit val timeout = Timeout(callTimeout seconds)
 
   def receive = {
     case (Prefix, refList: List[String]) => {
@@ -40,22 +46,22 @@ class FoldWorker(val sendTo: ActorRef) extends Actor with PlainRpc {
       }
     }
     case (LevelLimit, pid: String, key: Array[Byte]) => {
-      enter(pid, (key, Limit))
+      enter(pid, new KeyValue(key, Limit))
       this.pids = pids.filter(p => p != pid)
       if(this.pids.length == 0) {
         fill()
       }
     }
     case (LevelResult, pid: String, key: Array[Byte], value: Value) => {
-      enter(pid, (key, value))
+      enter(pid, new KeyValue(key, value))
       this.pids = pids.filter(p => p != pid)
       if(this.pids.length == 0) {
         fill()
       }
     }
-    case (PlainRpcProtocol.call, (LevelResults, pid: String, kv: KeyValue)) => {
+    case (PlainRpcProtocol.call, (LevelResults, pid: String, kvs: List[KeyValue])) => {
       sendReply(sender(), Ok)
-      enterMany(pid, kv)
+      enterMany(pid, kvs)
       this.pids = pids.filter(p => p != pid)
       if(this.pids.length == 0) {
         fill()
@@ -108,21 +114,65 @@ class FoldWorker(val sendTo: ActorRef) extends Actor with PlainRpc {
   }
 
   private def emitNext(): Unit = {
-//    val (firstPid, firstKv) = this.folding.head
-//    val rest = this.folding.tail
-//
-//    val lowest = rest.foldLeft((firstKv, List(firstPid)))((acc, e) => {
-//      val (retKv, pidList) = acc
-//      e match {
-//        case (pid, kv: KeyValue) if kv.key < retKv.key
-//      }
-//    })
+    if(this.folding.isEmpty) {
+      cast(this.sendTo, (FoldDone, self))
+      return
+    }
+
+    val (firstPid, maybeFirstKv) = this.folding.head
+    val rest = this.folding.tail
+
+    val firstKv = maybeFirstKv match {
+      case Some(kv) => kv
+      case _ => throw new IllegalStateException("firstKv is None")
+    }
+
+    val lowest = rest.foldLeft((firstKv, List(firstPid)))((acc, e) => {
+      val (retKv, pidList) = acc
+      e match {
+        case (pid, Some(kv: KeyValue)) if kv.key < retKv.key => {
+          (kv, List(pid))
+        }
+        case (pid, Some(element: Element)) => {
+          (element, pid :: pidList)
+        }
+        case (_, _) => acc
+      }
+    })
+
+    lowest match {
+      case (kv, fillForm) if kv.tombstoned => {
+        this.savePids = fillForm
+        fill()
+      }
+      case (KeyValue(k, Limit, _), _) => cast(this.sendTo, (FoldLimit, self, k))
+      case (kv, fillForm) => {
+        call(this.sendTo, (FoldResult, self, kv))
+        fill()
+      }
+    }
   }
 
-  private def enter(pid: String, kv: Any) = {
+  private def enter(pid: String, message: Any): Unit = {
+    this.refQueues.find(e => {
+      val (p, _) = e
+      p == pid
+    }).foreach(f => {
+      val (_, queue) = f
+      queue.push(message)
+    })
   }
 
-  private def enterMany(pid: String, kv: Any) = {
+  private def enterMany(pid: String, messages: List[Any]) = {
+    this.refQueues.find(e => {
+      val (p, _) = e
+      p == pid
+    }).foreach(f => {
+      val (_, queue) = f
+      for(message <- messages) {
+        queue.push(message)
+      }
+    })
   }
 }
 

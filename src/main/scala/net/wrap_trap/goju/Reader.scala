@@ -47,3 +47,6 @@ case object Stop extends FoldStatus
 case object Stopped extends FoldStatus
 case object Continue extends FoldStatus
 case object Ok extends FoldStatus
+case object FoldLimit extends FoldStatus
+case object FoldResult extends FoldStatus
+case object FoldDone extends FoldStatus
