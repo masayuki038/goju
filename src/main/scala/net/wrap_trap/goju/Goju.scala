@@ -3,6 +3,7 @@ package net.wrap_trap.goju
 import akka.actor._
 import akka.util.Timeout
 import net.wrap_trap.goju.Constants.Value
+import net.wrap_trap.goju.Goju._
 import scala.concurrent.duration._
 
 /**
@@ -20,61 +21,69 @@ object Goju extends PlainRpc {
   def open(dirPath: String): Unit = {
     new Goju(dirPath)
   }
-
-  def close(ref: ActorRef): Unit = {
-    try {
-      call(ref, Close)
-    } catch {
-      case ignore => {}
-    }
-  }
-
-  def destroy(ref: ActorRef): Unit = {
-    try {
-      call(ref, Destroy)
-    } catch {
-      case ignore => {}
-    }
-  }
-
-  def get(ref: ActorRef, key: Array[Byte]): Value = {
-    call(ref, (Get, key))
-  }
-
-  def lookup(ref: ActorRef, key: Array[Byte]): Value = {
-    get(ref, key)
-  }
-
-  def delete(ref: ActorRef, key: Array[Byte]): Unit = {
-    call(ref, (Delete, key))
-  }
-
-  def put(ref: ActorRef, key: Array[Byte], value: Value): Unit = {
-    call(ref, (Put, key, value))
-  }
-
-  def transact(ref: ActorRef, transactionSpecs: List[(TransactionOp, Any)]): Unit = {
-    call(ref, (Transact, transactionSpecs))
-  }
-
-//  def fold(ref: ActorRef, func: (Array[Byte], Value, (Int, List[Value])) => (Int, List[Value]), acc0: (Int, List[Value])): List[Value] = {
-//    foldRange(ref, func, acc0, KeyRange(new Key(Array.empty[Byte]), true, None, true, Integer.MAX_VALUE))
-//  }
-
-//  def foldRange(ref: ActorRef,
-//                func: (Array[Byte], Value, (Int, List[Value])) => (Int, List[Value]),
-//                acc0: (Int, List[Value]),
-//                range: KeyRange): List[Value] = {
-//    val rangeType = range.limit < 10 match {
-//      case true => BlockingRange
-//      case false => SnapshotRange
-//    }
-//
-//  }
 }
 
-class Goju(val dirPath: String) {
+class Goju(val dirPath: String) extends Actor with PlainRpc {
 
+  def close(): Unit = {
+    try {
+      call(self, Close)
+    } catch {
+      case ignore => {}
+    }
+  }
+
+  def destroy(): Unit = {
+    try {
+      call(self, Destroy)
+    } catch {
+      case ignore => {}
+    }
+  }
+
+  def get(key: Array[Byte]): Value = {
+    call(self, (Get, key))
+  }
+
+  def lookup(key: Array[Byte]): Value = {
+    get(key)
+  }
+
+  def delete(key: Array[Byte]): Unit = {
+    call(self, (Delete, key))
+  }
+
+  def put(key: Array[Byte], value: Value): Unit = {
+    call(self, (Put, key, value))
+  }
+
+  def transact(transactionSpecs: List[(TransactionOp, Any)]): Unit = {
+    call(self, (Transact, transactionSpecs))
+  }
+
+  def fold(func: (Key, Value, (Int, List[Value])) => (Int, List[Value]), acc0: (Int, List[Value])): List[Value] = {
+    foldRange(func, acc0, KeyRange(new Key(Array.empty[Byte]), true, None, true, Integer.MAX_VALUE))
+  }
+
+  def foldRange(func: (Key, Value, (Int, List[Value])) => (Int, List[Value]),
+                acc0: (Int, List[Value]),
+                range: KeyRange): List[Value] = {
+    val rangeType = range.limit < 10 match {
+      case true => BlockingRange
+      case false => SnapshotRange
+    }
+    val coordinatorRef = Utils.getActorSystem.actorOf(Props(classOf[FoldRangeCoordinator], self, range, func, acc0))
+    call(self, rangeType) match {
+      case results: List[Value] => {
+        context.stop(coordinatorRef)
+        results
+      }
+    }
+  }
+
+  def receive = {
+    case _ =>
+  }
 }
 
 sealed abstract class GojuOp
