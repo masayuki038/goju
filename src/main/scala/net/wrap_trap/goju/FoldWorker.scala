@@ -45,15 +45,15 @@ class FoldWorker(val sendTo: ActorRef) extends Actor with PlainRpc {
         fill()
       }
     }
-    case (LevelLimit, pid: String, key: Array[Byte]) => {
-      enter(pid, new KeyValue(key, Limit))
+    case (LevelLimit, pid: String, key: Key) => {
+      enter(pid, KeyValue(key, Limit, None))
       this.pids = pids.filter(p => p != pid)
       if(this.pids.length == 0) {
         fill()
       }
     }
-    case (LevelResult, pid: String, key: Array[Byte], value: Value) => {
-      enter(pid, new KeyValue(key, value))
+    case (LevelResult, pid: String, e: KeyValue) => {
+      enter(pid, e)
       this.pids = pids.filter(p => p != pid)
       if(this.pids.length == 0) {
         fill()

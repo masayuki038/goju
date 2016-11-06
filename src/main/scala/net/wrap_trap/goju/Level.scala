@@ -27,14 +27,15 @@ object Level extends PlainRpc {
   val callTimeout = Settings.getSettings().getInt("goju.level.call_timeout", 300)
   implicit val timeout = Timeout(callTimeout seconds)
 
-  def open(dirPath: String, level: Int, owner: Option[ActorRef], context: ActorContext): ActorRef = {
-    // TODO This method should be moved to 'Owner'
+  def open(dirPath: String, level: Int, owner: Option[ActorRef]): ActorRef = {
     Utils.ensureExpiry
-    context.actorOf(Props(classOf[Level], level, owner))
+    Utils.getActorSystem.actorOf(Props(classOf[Level], level, owner))
   }
 
-  def level(ref: ActorRef): Any = {
-    call(ref, Query)
+  def level(ref: ActorRef): Int = {
+    call(ref, Query) match {
+      case ret: Int => ret
+    }
   }
 
   def lookup(ref: ActorRef, key: Array[Byte]): Any = {
@@ -464,7 +465,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
     }
     case  (PlainRpcProtocol.cast, (MergeDone, count: Int, outFileName: String)) => {
       if(next.isEmpty) {
-        val level = Level.open(this.dirPath, this.level + 1, this.owner, context)
+        val level = Level.open(this.dirPath, this.level + 1, this.owner)
         this.owner.foreach{ o => o ! (BottomLevel, this.level + 1)}
         this.next = Option(level)
         this.maxLevel = this.level + 1

@@ -1,11 +1,14 @@
 package net.wrap_trap.goju
 
+import org.hashids.Hashids
+
 import collection.JavaConversions._
 import java.io.{FileOutputStream, File, FileWriter}
 import java.util.TreeMap
 
 import akka.actor.ActorRef
-import com.typesafe.config.Config
+import org.hashids.Hashids
+import org.hashids.syntax._
 import net.wrap_trap.goju.Constants.Value
 import net.wrap_trap.goju.element.{KeyValue, Element}
 
@@ -74,6 +77,11 @@ object Nursery {
     }
   }
 
+  def finish(nursery: Nursery, topLevel: ActorRef): Unit = {
+    val logFile = new File(nursery.dirPath + java.io.File.separator + LOG_FILENAME)
+    finish(nursery, logFile, topLevel)
+  }
+
   private def finish(nursery: Nursery, logFile: File, topLevel: ActorRef): Unit = {
     Utils.ensureExpiry
 
@@ -99,6 +107,8 @@ object Nursery {
 }
 
 class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tree: TreeMap[Key, Element]) {
+  implicit val hashids = Hashids.reference(this.hashCode.toString)
+
   def this(dirPath: String, minLevel: Int, maxLevel: Int) = {
     this(dirPath, minLevel, maxLevel, new TreeMap[Key, Element])
   }
@@ -150,6 +160,22 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
     }
   }
 
+  def lookup(key: Array[Byte]): Option[KeyValue] = {
+    val element = this.tree.get(Key(key))
+    element match {
+      case kv: KeyValue => {
+        if(kv.expired()) {
+          Option(new KeyValue(key, Constants.TOMBSTONE, kv.timestamp))
+        } else {
+          Option(kv)
+        }
+      }
+      case _ => {
+        None
+      }
+    }
+  }
+
   def doIncMerge() = {
     // TODO hanoidb_level:begin_incremental_merge
   }
@@ -158,7 +184,7 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
     (count + n + 1) < (1 << this.minLevel)
   }
 
-  def transact(transactionSpecs: List[(TransactionOp, Any)], nursery: Nursery, top: ActorRef) = {
+  def transact(transactionSpecs: List[(TransactionOp, Any)], top: ActorRef) = {
     val dbExpireSecs = Settings.getSettings().getInt("goju.expiry_secs", 0)
     val ops = transactionSpecs.map { spec =>
       spec match {
@@ -181,7 +207,35 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
     this.count = tree.size
   }
 
-  // TODO implement do_inc_merge, do_level_fold
+  def doLevelFold(foldWorkerPid: ActorRef, range: KeyRange): Unit = {
+    val ref = System.nanoTime.hashid
+    foldWorkerPid ! (Prefix, ref)
+    val (lastKey, count) = this.tree.foldLeft(None: Option[Key], range.limit){
+      case ((lastKey, count), (k: Key, e: Element)) => {
+      (count == 0) match {
+        case true => (lastKey, count)
+        case false => {
+          if(range.keyInFromRange(k) && range.keyInToRange(k) && !e.expired()) {
+            foldWorkerPid ! (LevelResult, ref, e)
+            if(e.tombstoned()) {
+              (Option(e.key), count)
+            } else {
+              (Option(e.key), count - 1)
+            }
+          } else {
+            (lastKey, count)
+          }
+        }
+      }
+    }}
+    if(lastKey.isDefined && (count == 0)) {
+      foldWorkerPid ! (LevelLimit, ref, lastKey.get)
+    } else {
+      foldWorkerPid ! (LevelDone, ref)
+    }
+  }
+
+  // TODO implement do_inc_merge
 }
 
 sealed abstract class TransactionOp

@@ -14,7 +14,8 @@ import scala.concurrent.duration._
   * This software is released under the MIT License.
   * http://opensource.org/licenses/mit-license.php
   */
-class FoldRangeCoordinator(val owner: ActorRef,
+class FoldRangeCoordinator(val topLevelRef: ActorRef,
+                           val nursery: Nursery,
                            val range: KeyRange,
                            val func: (Key, Value, (Int, List[Value])) => (Int, List[Value]),
                            var acc: (Int, List[Value]))
@@ -22,12 +23,26 @@ class FoldRangeCoordinator(val owner: ActorRef,
   val callTimeout = Settings.getSettings().getInt("goju.call_timeout", 300)
   implicit val timeout = Timeout(callTimeout seconds)
   var limit = range.limit
+  var owner: Option[ActorRef] = None
 
   def receive = {
-    case (PlainRpcProtocol.call, rangeType: RangeType) => {
+    case (PlainRpcProtocol.call, Start) => {
+      this.owner = Option(sender)
       val foldWorkerRef = Utils.getActorSystem.actorOf(Props(classOf[FoldWorker], self))
       context.watch(foldWorkerRef)
-      call(self, (rangeType, foldWorkerRef, range))
+
+      range.limit < 10 match {
+        case true => {
+          // BlockingRange
+          this.nursery.doLevelFold(foldWorkerRef, range)
+          Level.blockingRange(this.topLevelRef, foldWorkerRef, range)
+        }
+        case false => {
+          // SnapshotRange
+          this.nursery.doLevelFold(foldWorkerRef, range)
+          Level.snapshotRange(this.topLevelRef, foldWorkerRef, range)
+        }
+      }
     }
     case (PlainRpcProtocol.call, (FoldResult, _, kv: KeyValue)) => {
       val foldWorkerRef = sender
@@ -37,21 +52,21 @@ class FoldRangeCoordinator(val owner: ActorRef,
       if(this.limit <= 0) {
         context.unwatch(foldWorkerRef)
         context.stop(foldWorkerRef)
-        sendReply(this.owner, this.acc)
+        sendReply(this.owner.get, this.acc)
       }
     }
     case (PlainRpcProtocol.cast, (FoldLimit, _, _)) => {
       val foldWorkerRef = sender
       context.unwatch(foldWorkerRef)
-      sendReply(this.owner, this.acc)
+      sendReply(this.owner.get, this.acc)
     }
     case (PlainRpcProtocol.cast, (FoldDone, _)) => {
       val foldWorkerRef = sender
       context.unwatch(foldWorkerRef)
-      sendReply(this.owner, this.acc)
+      sendReply(this.owner.get, this.acc)
     }
     case Terminated => {
-      sendReply(this.owner, this.acc)
+      sendReply(this.owner.get, this.acc)
     }
   }
 }

@@ -1,12 +1,14 @@
 package net.wrap_trap.goju
 
 import java.io.File
-import java.util.regex.Pattern
 
 import akka.actor._
 import akka.util.Timeout
 import net.wrap_trap.goju.Constants.Value
 import net.wrap_trap.goju.Goju._
+import net.wrap_trap.goju.element.KeyValue
+import org.joda.time.DateTime
+
 import scala.concurrent.duration._
 
 /**
@@ -22,30 +24,38 @@ object Goju extends PlainRpc {
   implicit val timeout = Timeout(callTimeout seconds)
 
   def open(dirPath: String): Unit = {
-    new Goju(dirPath)
+    new Goju(dirPath).init()
   }
 }
 
-class Goju(val dirPath: String) extends Actor with PlainRpc {
+class Goju(val dirPath: String) extends PlainRpc {
   val dataFilePattern = ("^[^\\d]+-(\\d+).data$").r
+  var nursery: Option[Nursery] = None
+  var topLevelRef: Option[ActorRef] = None
+  var maxLevel: Option[Int] = None
 
-  override def preStart(): Unit = {
+  def init(): Unit = {
     Utils.ensureExpiry
     val dir = new File(this.dirPath)
-    val (topLevelref, nurseryRef, minLevel) = dir.isDirectory match {
+    val (topRef, newNursery, maxLevel) = dir.isDirectory match {
       case true => {
-        val (topLevel, minLevel, maxLevel) = openLevels(dir)
+        val (topRef, minLevel, maxLevel) = openLevels(dir)
+        val newNursery = Nursery.recover(this.dirPath, topRef, minLevel, maxLevel)
+        (topRef, newNursery, maxLevel)
       }
       case false => {
         if(dir.mkdir()) {
           throw new IllegalStateException("Failed to create directory: " + dirPath)
         }
         val minLevel = Settings.getSettings().getInt("goju.level.top_level", 8)
-        val topLevelRef = Level.open(this.dirPath, minLevel, None, context)
-        val nurseryRef = Nursery.newNursery(this.dirPath, minLevel, minLevel)
-        (topLevelRef, nurseryRef, minLevel)
+        val topLevelRef = Level.open(this.dirPath, minLevel, None)
+        val newNursery = Nursery.newNursery(this.dirPath, minLevel, minLevel)
+        (topLevelRef, newNursery, minLevel)
       }
     }
+    this.nursery = Option(newNursery)
+    this.topLevelRef = Option(topRef)
+    this.maxLevel = Option(maxLevel)
   }
 
   private def openLevels(dir: File): (ActorRef, Int, Int) = {
@@ -65,7 +75,7 @@ class Goju(val dirPath: String) extends Actor with PlainRpc {
     }
     val (ref, maxMerge) =
       Range(maxLevel, minLevel).foldLeft(None: Option[ActorRef], 0){case ((nextLevel, mergeWork0), levelNo) => {
-      val level = Level.open(this.dirPath, levelNo, nextLevel, context)
+      val level = Level.open(this.dirPath, levelNo, nextLevel)
       (Option(level), mergeWork0 + Level.unmergedCount(level))
     }}
     val workPerIter = (maxLevel - minLevel + 1) * Utils.btreeSize(minLevel)
@@ -85,7 +95,10 @@ class Goju(val dirPath: String) extends Actor with PlainRpc {
 
   def close(): Unit = {
     try {
-      call(self, Close)
+      Nursery.finish(this.nursery.get, this.topLevelRef.get)
+      val min = Level.level(this.topLevelRef.get)
+      this.nursery = Option(Nursery.newNursery(this.dirPath, min, this.maxLevel.get))
+      Level.close(this.topLevelRef.get)
     } catch {
       case ignore => {}
     }
@@ -93,30 +106,47 @@ class Goju(val dirPath: String) extends Actor with PlainRpc {
 
   def destroy(): Unit = {
     try {
-      call(self, Destroy)
+      val topLevelNumber = Level.level(topLevelRef.get)
+      this.nursery.get.destroy()
+      Level.destroy(this.topLevelRef.get)
+      this.maxLevel = Option(topLevelNumber)
     } catch {
       case ignore => {}
     }
   }
 
-  def get(key: Array[Byte]): Value = {
-    call(self, (Get, key))
+  def get(key: Array[Byte]): Option[Value] = {
+    this.nursery.get.lookup(key) match {
+      case Some(e) => Option(e.value)
+      case None => {
+        Level.lookup(this.topLevelRef.get, key) match {
+          case kv: KeyValue => {
+            Option(kv.value)
+          }
+          case _ => None
+        }
+      }
+    }
   }
 
-  def lookup(key: Array[Byte]): Value = {
+  def lookup(key: Array[Byte]): Option[Value] = {
     get(key)
   }
 
   def delete(key: Array[Byte]): Unit = {
-    call(self, (Delete, key))
+    put(key, Constants.TOMBSTONE)
   }
 
   def put(key: Array[Byte], value: Value): Unit = {
-    call(self, (Put, key, value))
+    Nursery.add(key, value, this.nursery.get, this.topLevelRef.get)
+  }
+
+  def put(key: Array[Byte], value: Value, keyExpireSecs: Int): Unit = {
+    Nursery.add(key, value, keyExpireSecs, this.nursery.get, this.topLevelRef.get)
   }
 
   def transact(transactionSpecs: List[(TransactionOp, Any)]): Unit = {
-    call(self, (Transact, transactionSpecs))
+    this.nursery.get.transact(transactionSpecs, this.topLevelRef.get)
   }
 
   def fold(func: (Key, Value, (Int, List[Value])) => (Int, List[Value]), acc0: (Int, List[Value])): List[Value] = {
@@ -126,27 +156,24 @@ class Goju(val dirPath: String) extends Actor with PlainRpc {
   def foldRange(func: (Key, Value, (Int, List[Value])) => (Int, List[Value]),
                 acc0: (Int, List[Value]),
                 range: KeyRange): List[Value] = {
-    val rangeType = range.limit < 10 match {
-      case true => BlockingRange
-      case false => SnapshotRange
-    }
-    val coordinatorRef = Utils.getActorSystem.actorOf(Props(classOf[FoldRangeCoordinator], self, range, func, acc0))
-    call(self, rangeType) match {
+    val system = Utils.getActorSystem
+    val coordinatorRef = system.actorOf(
+      Props(classOf[FoldRangeCoordinator], this.topLevelRef.get, this.nursery.get, range, func, acc0))
+    call(coordinatorRef, Start) match {
       case results: List[Value] => {
-        context.stop(coordinatorRef)
+        system.stop(coordinatorRef)
         results
       }
     }
-  }
-
-  def receive = {
-    case _ =>
   }
 }
 
 sealed abstract class GojuOp
 case object Get extends GojuOp
 case object Transact extends GojuOp
+
+sealed abstract class RangeOp
+case object Start extends RangeOp
 
 sealed abstract class RangeType
 case object BlockingRange extends RangeType
