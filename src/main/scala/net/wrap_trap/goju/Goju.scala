@@ -1,5 +1,8 @@
 package net.wrap_trap.goju
 
+import java.io.File
+import java.util.regex.Pattern
+
 import akka.actor._
 import akka.util.Timeout
 import net.wrap_trap.goju.Constants.Value
@@ -24,6 +27,61 @@ object Goju extends PlainRpc {
 }
 
 class Goju(val dirPath: String) extends Actor with PlainRpc {
+  val dataFilePattern = ("^[^\\d]+-(\\d+).data$").r
+
+  override def preStart(): Unit = {
+    Utils.ensureExpiry
+    val dir = new File(this.dirPath)
+    val (topLevelref, nurseryRef, minLevel) = dir.isDirectory match {
+      case true => {
+        val (topLevel, minLevel, maxLevel) = openLevels(dir)
+      }
+      case false => {
+        if(dir.mkdir()) {
+          throw new IllegalStateException("Failed to create directory: " + dirPath)
+        }
+        val minLevel = Settings.getSettings().getInt("goju.level.top_level", 8)
+        val topLevelRef = Level.open(this.dirPath, minLevel, None, context)
+        val nurseryRef = Nursery.newNursery(this.dirPath, minLevel, minLevel)
+        (topLevelRef, nurseryRef, minLevel)
+      }
+    }
+  }
+
+  private def openLevels(dir: File): (ActorRef, Int, Int) = {
+    val topLevel0 = Settings.getSettings().getInt("goju.level.top_level", 8)
+    val (minLevel, maxLevel) = dir.list.foldLeft(topLevel0, topLevel0){case ((min, max), filename: String) => {
+      filename match {
+        case dataFilePattern(l) => {
+          val level = l.toInt
+          (Math.min(min, level), Math.max(max, level))
+        }
+        case _ => (min, max)
+      }
+    }}
+    val nurseryFile = new File(this.dirPath + java.io.File.pathSeparator + Nursery.DATA_FILENAME)
+    if(!nurseryFile.delete) {
+      throw new IllegalStateException("Failed to delete nursery file: " + nurseryFile.getAbsolutePath)
+    }
+    val (ref, maxMerge) =
+      Range(maxLevel, minLevel).foldLeft(None: Option[ActorRef], 0){case ((nextLevel, mergeWork0), levelNo) => {
+      val level = Level.open(this.dirPath, levelNo, nextLevel, context)
+      (Option(level), mergeWork0 + Level.unmergedCount(level))
+    }}
+    val workPerIter = (maxLevel - minLevel + 1) * Utils.btreeSize(minLevel)
+    val topLevelRef = ref.get
+    doMerge(topLevelRef, workPerIter, maxMerge, minLevel)
+    (topLevelRef, minLevel, maxLevel)
+  }
+
+  private def doMerge(topLevelRef: ActorRef, workPerIter: Int, maxMerge: Int, minLevel: Int): Unit = {
+    if(maxMerge <= 0) {
+      Level.awaitIncrementalMerge(topLevelRef)
+    } else {
+      Level.beginIncrementalMerge(topLevelRef, Utils.btreeSize(minLevel))
+      doMerge(topLevelRef, workPerIter, maxMerge - workPerIter, minLevel)
+    }
+  }
 
   def close(): Unit = {
     try {

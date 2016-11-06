@@ -27,7 +27,7 @@ object Level extends PlainRpc {
   val callTimeout = Settings.getSettings().getInt("goju.level.call_timeout", 300)
   implicit val timeout = Timeout(callTimeout seconds)
 
-  def open(dirPath: String, level: Int, owner: ActorRef, context: ActorContext): ActorRef = {
+  def open(dirPath: String, level: Int, owner: Option[ActorRef], context: ActorContext): ActorRef = {
     // TODO This method should be moved to 'Owner'
     Utils.ensureExpiry
     context.actorOf(Props(classOf[Level], level, owner))
@@ -57,8 +57,10 @@ object Level extends PlainRpc {
     call(ref, AwaitIncrementalMerge)
   }
 
-  def unmergedCount(ref: ActorRef): Any = {
-    call(ref, UnmergedCount)
+  def unmergedCount(ref: ActorRef): Int = {
+    call(ref, UnmergedCount) match  {
+      case ret: Int => ret
+    }
   }
 
   def setMaxLevel(ref: ActorRef, levelNo: Int): Unit = {
@@ -96,7 +98,7 @@ object Level extends PlainRpc {
   }
 }
 
-class Level(val dirPath: String, val level: Int, val owner: ActorRef) extends Actor with PlainRpc {
+class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) extends Actor with PlainRpc {
   implicit val hashids = Hashids.reference(this.hashCode.toString)
 
   var aReader: Option[RandomReader] = None
@@ -463,7 +465,7 @@ class Level(val dirPath: String, val level: Int, val owner: ActorRef) extends Ac
     case  (PlainRpcProtocol.cast, (MergeDone, count: Int, outFileName: String)) => {
       if(next.isEmpty) {
         val level = Level.open(this.dirPath, this.level + 1, this.owner, context)
-        this.owner ! (BottomLevel, this.level + 1)
+        this.owner.foreach{ o => o ! (BottomLevel, this.level + 1)}
         this.next = Option(level)
         this.maxLevel = this.level + 1
       }
