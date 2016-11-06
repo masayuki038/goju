@@ -92,9 +92,25 @@ object Nursery {
       }
       Writer.close(writer)
     }
-    // TODO inject & merge
 
-    nursery.destroy()
+    nursery.count > 0 match {
+      case true => {
+        val btreeFileName = nursery.dirPath + java.io.File.separator + DATA_FILENAME
+        val writer = Writer.open(btreeFileName)
+        try {
+          nursery.tree.foreach{case(key, e) => {
+            Writer.add(writer, e)
+          }}
+        } finally {
+          Writer.close(writer)
+        }
+        Level.inject(topLevel, btreeFileName)
+        if(nursery.mergeDone < Utils.btreeSize(nursery.minLevel)) {
+          Level.beginIncrementalMerge(topLevel, Utils.btreeSize(nursery.minLevel) - nursery.mergeDone)
+        }
+      }
+    }
+    logFile.delete()
   }
 
   private def readNurseryFromLog(logFile: File, minLevel: Int, maxLevel: Int): Nursery = {
@@ -108,13 +124,15 @@ object Nursery {
 
 class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tree: TreeMap[Key, Element]) {
   implicit val hashids = Hashids.reference(this.hashCode.toString)
+  val logger = new FileOutputStream(dirPath + java.io.File.separator + Nursery.LOG_FILENAME, true)
+  var lastSync = System.currentTimeMillis
+  var count = 0
+  var step = 0
+  var mergeDone = 0
 
   def this(dirPath: String, minLevel: Int, maxLevel: Int) = {
     this(dirPath, minLevel, maxLevel, new TreeMap[Key, Element])
   }
-  val logger = new FileOutputStream(dirPath + java.io.File.separator + Nursery.LOG_FILENAME, true)
-  var lastSync = System.currentTimeMillis
-  var count = 0
 
   def destroy() = {
     logger.close
@@ -176,8 +194,14 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
     }
   }
 
-  def doIncMerge() = {
-    // TODO hanoidb_level:begin_incremental_merge
+  def doIncMerge(n: Int, top: ActorRef): Unit = {
+    if(this.step + n >= (Utils.btreeSize(this.minLevel) / 2)) {
+      Level.beginIncrementalMerge(top, this.step + n)
+      this.step = 0
+      this.mergeDone = this.mergeDone + this.step + n
+    } else {
+      this.step = this.step + n
+    }
   }
 
   def hasRoom(n: Int): Boolean = {
@@ -234,8 +258,6 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
       foldWorkerPid ! (LevelDone, ref)
     }
   }
-
-  // TODO implement do_inc_merge
 }
 
 sealed abstract class TransactionOp
