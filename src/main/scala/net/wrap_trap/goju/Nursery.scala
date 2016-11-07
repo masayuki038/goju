@@ -85,32 +85,22 @@ object Nursery {
   private def finish(nursery: Nursery, logFile: File, topLevel: ActorRef): Unit = {
     Utils.ensureExpiry
 
-    if(nursery.tree.size > 0) {
-      val writer = Writer.open(nursery.dirPath + java.io.File.separator + DATA_FILENAME)
-      for(e <- nursery.tree.values) {
-        Writer.add(writer, e)
+    if(nursery.count > 0) {
+      val btreeFileName = nursery.dirPath + java.io.File.separator + DATA_FILENAME
+      val writer = Writer.open(btreeFileName)
+      try {
+        nursery.tree.foreach{case(key, e) => {
+          Writer.add(writer, e)
+        }}
+      } finally {
+        Writer.close(writer)
       }
-      Writer.close(writer)
-    }
-
-    nursery.count > 0 match {
-      case true => {
-        val btreeFileName = nursery.dirPath + java.io.File.separator + DATA_FILENAME
-        val writer = Writer.open(btreeFileName)
-        try {
-          nursery.tree.foreach{case(key, e) => {
-            Writer.add(writer, e)
-          }}
-        } finally {
-          Writer.close(writer)
-        }
-        Level.inject(topLevel, btreeFileName)
-        if(nursery.mergeDone < Utils.btreeSize(nursery.minLevel)) {
-          Level.beginIncrementalMerge(topLevel, Utils.btreeSize(nursery.minLevel) - nursery.mergeDone)
-        }
+      Level.inject(topLevel, btreeFileName)
+      if(nursery.mergeDone < Utils.btreeSize(nursery.minLevel)) {
+        Level.beginIncrementalMerge(topLevel, Utils.btreeSize(nursery.minLevel) - nursery.mergeDone)
       }
     }
-    logFile.delete()
+    nursery.destroy()
   }
 
   private def readNurseryFromLog(logFile: File, minLevel: Int, maxLevel: Int): Nursery = {
@@ -126,7 +116,7 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
   implicit val hashids = Hashids.reference(this.hashCode.toString)
   val logger = new FileOutputStream(dirPath + java.io.File.separator + Nursery.LOG_FILENAME, true)
   var lastSync = System.currentTimeMillis
-  var count = 0
+  var count = tree.size
   var step = 0
   var mergeDone = 0
 
