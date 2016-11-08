@@ -3,7 +3,7 @@ package net.wrap_trap.goju
 import org.hashids.Hashids
 
 import collection.JavaConversions._
-import java.io.{FileOutputStream, File, FileWriter}
+import java.io.{FileOutputStream, File}
 import java.util.TreeMap
 
 import akka.actor.ActorRef

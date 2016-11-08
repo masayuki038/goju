@@ -1,6 +1,6 @@
 package net.wrap_trap.goju
 
-import akka.actor.{ActorContext, Actor, ActorRef}
+import akka.actor.{ActorContext, ActorRef}
 import akka.pattern.ask
 import akka.util.Timeout
 import net.wrap_trap.goju.PlainRpcProtocol._

@@ -1,6 +1,6 @@
 package net.wrap_trap.goju
 
-import akka.actor.{Props, ActorSystem, Actor, ActorRef}
+import akka.actor.{Actor, ActorRef}
 import akka.util.Timeout
 import net.wrap_trap.goju.element.Element
 import scala.concurrent.duration._

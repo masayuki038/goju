@@ -1,7 +1,6 @@
 package net.wrap_trap.goju
 
 import akka.util.Timeout
-import net.wrap_trap.goju.Constants.Value
 import net.wrap_trap.goju.element.{Element, KeyValue}
 
 import scala.collection.mutable.Stack

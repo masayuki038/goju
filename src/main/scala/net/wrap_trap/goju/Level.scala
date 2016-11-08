@@ -1,7 +1,7 @@
 package net.wrap_trap.goju
 
 import java.io.File
-import java.nio.file.{Paths, Path, Files}
+import java.nio.file.{Paths, Files}
 
 import akka.actor._
 import akka.util.Timeout

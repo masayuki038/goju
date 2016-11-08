@@ -3,7 +3,7 @@ package net.wrap_trap.goju
 import java.io.{ByteArrayOutputStream, FileOutputStream, BufferedOutputStream, DataOutputStream}
 import scala.concurrent.duration._
 
-import akka.actor.{ActorRef, Props, ActorSystem, Actor}
+import akka.actor.{ActorRef, Props, Actor}
 import akka.util.Timeout
 import com.typesafe.scalalogging.Logger
 import org.slf4j.LoggerFactory

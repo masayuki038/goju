@@ -5,7 +5,7 @@ import java.io.ByteArrayInputStream
 import com.typesafe.scalalogging.Logger
 import net.wrap_trap.goju.Helper._
 import org.slf4j.LoggerFactory
-import net.wrap_trap.goju.element.{Element, KeyValue, KeyRef}
+import net.wrap_trap.goju.element.Element
 
 /**
   * goju-to: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone

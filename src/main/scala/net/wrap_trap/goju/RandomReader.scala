@@ -1,9 +1,8 @@
 package net.wrap_trap.goju
 
-import java.io.{ByteArrayInputStream, File, RandomAccessFile}
+import java.io.{File, RandomAccessFile}
 
 import net.wrap_trap.goju.Constants._
-import net.wrap_trap.goju.Helper._
 import net.wrap_trap.goju.element.{KeyRef, KeyValue, Element}
 
 /**
