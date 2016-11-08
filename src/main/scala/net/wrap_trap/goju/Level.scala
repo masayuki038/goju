@@ -29,7 +29,7 @@ object Level extends PlainRpc {
 
   def open(dirPath: String, level: Int, owner: Option[ActorRef]): ActorRef = {
     Utils.ensureExpiry
-    Utils.getActorSystem.actorOf(Props(classOf[Level], level, owner))
+    Utils.getActorSystem.actorOf(Props(classOf[Level], dirPath, level, owner))
   }
 
   def level(ref: ActorRef): Int = {
@@ -230,7 +230,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
   }
 
   private def filename(prefix: String): String = {
-    "%s%s%s-%d.data".format(dirPath, File.separator, prefix, this.level)
+    "%s%s%s-%d.data".format(dirPath, File.pathSeparator, prefix, this.level)
   }
 
   def receive = {

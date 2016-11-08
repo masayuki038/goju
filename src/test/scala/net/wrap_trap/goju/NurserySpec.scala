@@ -83,7 +83,7 @@ class NurserySpec extends TestKit(ActorSystem("test"))
     nursery.logger.close()
     val newNursery = Nursery.recover(".", top, 1, 2)
 
-    val reader = RandomReader.open(newNursery.dirPath + java.io.File.separator + Nursery.DATA_FILENAME)
+    val reader = RandomReader.open(newNursery.dirPath + java.io.File.pathSeparator + Nursery.DATA_FILENAME)
     reader.lookup(Utils.toBytes("foo")) should be(Option("bar"))
     reader.lookup(Utils.toBytes("hoge")) should be(Option("hogehoge"))
     reader.destroy()
@@ -93,7 +93,7 @@ class NurserySpec extends TestKit(ActorSystem("test"))
   "Nursery.recover" should "be recoverd two elements with expire time" in twoInNursery { (nursery, top) =>
     nursery.logger.close()
     val newNursery = Nursery.recover(".", top, 1, 2)
-    val reader = RandomReader.open(newNursery.dirPath + java.io.File.separator + Nursery.DATA_FILENAME)
+    val reader = RandomReader.open(newNursery.dirPath + java.io.File.pathSeparator + Nursery.DATA_FILENAME)
 
     Thread.sleep(5000L)
     reader.lookup(Utils.toBytes("foo")) should be(None)

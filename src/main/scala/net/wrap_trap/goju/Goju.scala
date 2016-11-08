@@ -22,8 +22,10 @@ object Goju extends PlainRpc {
   val callTimeout = Settings.getSettings().getInt("goju.call_timeout", 300)
   implicit val timeout = Timeout(callTimeout seconds)
 
-  def open(dirPath: String): Unit = {
-    new Goju(dirPath).init()
+  def open(dirPath: String): Goju = {
+    val goju = new Goju(dirPath)
+    goju.init()
+    goju
   }
 }
 
@@ -43,7 +45,7 @@ class Goju(val dirPath: String) extends PlainRpc {
         (topRef, newNursery, maxLevel)
       }
       case false => {
-        if(dir.mkdir()) {
+        if(!dir.mkdir()) {
           throw new IllegalStateException("Failed to create directory: " + dirPath)
         }
         val minLevel = Settings.getSettings().getInt("goju.level.top_level", 8)
