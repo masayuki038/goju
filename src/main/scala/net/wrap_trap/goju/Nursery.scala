@@ -30,7 +30,7 @@ object Nursery {
   }
 
   def flush(nursery: Nursery, top: ActorRef): Nursery = {
-    val logFile = new File(nursery.dirPath + java.io.File.pathSeparator + Nursery.LOG_FILENAME)
+    val logFile = new File(nursery.dirPath + java.io.File.separator + Nursery.LOG_FILENAME)
     finish(nursery, logFile, top)
     if(logFile.exists) {
       throw new IllegalStateException("Failed to delete log file")
@@ -54,7 +54,7 @@ object Nursery {
     }
     Utils.ensureExpiry
 
-    val logFile = new File(dirPath + java.io.File.pathSeparator + LOG_FILENAME)
+    val logFile = new File(dirPath + java.io.File.separator + LOG_FILENAME)
     if(logFile.exists()) {
       doRecover(logFile, topLevel, minLevel, maxLevel)
     }
@@ -78,7 +78,7 @@ object Nursery {
   }
 
   def finish(nursery: Nursery, topLevel: ActorRef): Unit = {
-    val logFile = new File(nursery.dirPath + java.io.File.pathSeparator + LOG_FILENAME)
+    val logFile = new File(nursery.dirPath + java.io.File.separator + LOG_FILENAME)
     finish(nursery, logFile, topLevel)
   }
 
@@ -86,7 +86,7 @@ object Nursery {
     Utils.ensureExpiry
 
     if(nursery.count > 0) {
-      val btreeFileName = nursery.dirPath + java.io.File.pathSeparator + DATA_FILENAME
+      val btreeFileName = nursery.dirPath + java.io.File.separator + DATA_FILENAME
       val writer = Writer.open(btreeFileName)
       try {
         nursery.tree.foreach{case(key, e) => {
@@ -114,7 +114,7 @@ object Nursery {
 
 class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tree: TreeMap[Key, Element]) {
   implicit val hashids = Hashids.reference(this.hashCode.toString)
-  val logger = new FileOutputStream(dirPath + java.io.File.pathSeparator + Nursery.LOG_FILENAME, true)
+  val logger = new FileOutputStream(dirPath + java.io.File.separator + Nursery.LOG_FILENAME, true)
   var lastSync = System.currentTimeMillis
   var count = tree.size
   var step = 0
@@ -126,7 +126,7 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
 
   def destroy() = {
     logger.close
-    new File(dirPath + java.io.File.pathSeparator + Nursery.LOG_FILENAME).delete()
+    new File(dirPath + java.io.File.separator + Nursery.LOG_FILENAME).delete()
   }
 
   def doAdd(rawKey: Array[Byte], value: Value, keyExpireSecs: Int, top: ActorRef): Boolean = {

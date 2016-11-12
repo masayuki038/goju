@@ -70,7 +70,7 @@ class Goju(val dirPath: String) extends PlainRpc {
         case _ => (min, max)
       }
     }}
-    val nurseryFile = new File(this.dirPath + java.io.File.pathSeparator + Nursery.DATA_FILENAME)
+    val nurseryFile = new File(this.dirPath + java.io.File.separator + Nursery.DATA_FILENAME)
     if(!nurseryFile.delete) {
       throw new IllegalStateException("Failed to delete nursery file: " + nurseryFile.getAbsolutePath)
     }

@@ -230,7 +230,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
   }
 
   private def filename(prefix: String): String = {
-    "%s%s%s-%d.data".format(dirPath, File.pathSeparator, prefix, this.level)
+    "%s%s%s-%d.data".format(dirPath, File.separator, prefix, this.level)
   }
 
   def receive = {
