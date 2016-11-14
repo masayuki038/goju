@@ -51,6 +51,7 @@ object Level extends PlainRpc {
   }
 
   def beginIncrementalMerge(ref: ActorRef, stepSize: Int): Any = {
+    log.debug("beginIncrementalMerge: stepSize: %d".format(stepSize))
     call(ref, (BeginIncrementalMerge, stepSize))
   }
 
@@ -100,6 +101,7 @@ object Level extends PlainRpc {
 }
 
 class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) extends Actor with PlainRpc {
+  val log = Logger(LoggerFactory.getLogger(Level.getClass))
   implicit val hashids = Hashids.reference(this.hashCode.toString)
 
   var aReader: Option[RandomReader] = None
@@ -112,6 +114,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
   var workDone = 0
   var maxLevel = 0
 
+  var mergePid: Option[ActorRef] = None
   var stepMergeRef: Option[ActorRef] = None
   var stepNextRef: Option[ActorRef] = None
   var stepCaller: Option[ActorRef] = None
@@ -189,16 +192,18 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
   }
 
   private def checkBeginMergeThenLoop0(): Unit = {
-    if(aReader.isDefined && bReader.isDefined && stepMergeRef.isEmpty) {
-      val merger = beginMerge()
-      val watcher = context.watch(merger)
+    log.debug("checkBeginMergeThenLoop0")
+    if(aReader.isDefined && bReader.isDefined && mergePid.isEmpty) {
+      val mergeRef = beginMerge()
+      val watcher = context.watch(mergeRef)
 
       val progress = this.cReader match {
         case Some(r) => 2 * Utils.btreeSize(this.level)
         case _ => Utils.btreeSize(this.level)
       }
-      merger ! (Step, (self, watcher), progress)
+      mergeRef ! (Step, (self, watcher), progress)
 
+      this.mergePid = Option(mergeRef)
       this.stepMergeRef = Option(watcher)
       this.wip = Option(progress)
       this.workDone = 0
@@ -209,9 +214,10 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
   }
 
   private def checkBeginMergeThenLoop(): Unit = {
-    if(aReader.isDefined && bReader.isDefined && stepMergeRef.isEmpty) {
-      val merger = beginMerge()
-      this.stepMergeRef = Option(merger)
+    log.debug("checkBeginMergeThenLoop")
+    if(aReader.isDefined && bReader.isDefined && mergePid.isEmpty) {
+      val mergeRef = beginMerge()
+      this.mergePid = Option(mergeRef)
       this.workDone = 0
     }
     mainLoop()
@@ -277,6 +283,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
     }
     case (PlainRpcProtocol.call, (BeginIncrementalMerge, stepSize: Int))
       if (this.stepMergeRef.isEmpty && this.stepNextRef.isEmpty) => {
+      log.debug("receive BeginIncrementalMerge: stepSize: %d".format(stepSize))
       sendReply(sender(), true)
       doStep(None, 0, stepSize)
     }
@@ -322,7 +329,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
       closeIfDefined(this.aReader)
       closeIfDefined(this.bReader)
       closeIfDefined(this.cReader)
-      val list = this.stepMergeRef match {
+      val list = this.mergePid match {
         case Some(s) => s :: folding
         case _ => folding
       }
@@ -340,7 +347,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
       destroyIfDefined(this.aReader)
       destroyIfDefined(this.bReader)
       destroyIfDefined(this.cReader)
-      val list = this.stepMergeRef match {
+      val list = this.mergePid match {
         case Some(s) => s :: folding
         case _ => folding
       }
@@ -429,7 +436,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
       Utils.deleteFile(outFileName)
       closeAndDeleteAAndB()
 
-      this.stepMergeRef = None
+      this.mergePid = None
       this.cReader match {
         case None => // do nothing
         case Some(reader) => {
@@ -451,7 +458,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
       Utils.renameFile(mFileName, aFileName)
       this.aReader = Option(RandomReader.open(aFileName))
 
-      this.stepMergeRef = None
+      this.mergePid = None
       this.cReader match {
         case None => this.bReader = None
         case Some(reader) => {
@@ -474,7 +481,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
         case Some(n) => {
           val mRef = sendCall(n, this.context, (Inject, outFileName))
           this.injectDoneRef = Option(mRef)
-          this.stepMergeRef = None
+          this.mergePid = None
         }
       }
     }
@@ -551,8 +558,9 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
   }
 
   private def doStep(stepFrom: Option[ActorRef], previousWork: Int, stepSize: Int): Unit = {
+    log.debug("doStep: stepFrom: %s, previousWork: %d, stepSize: %d".format(stepFrom, previousWork, stepSize))
     var workLeftHere = 0
-    if(this.bReader.isDefined && this.stepMergeRef.isDefined) {
+    if(this.bReader.isDefined && this.mergePid.isDefined) {
       workLeftHere = Math.max(0, (2 * Utils.btreeSize(this.level)) - this.workDone)
     }
     val workUnit = stepSize
@@ -572,16 +580,23 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
       }
     }
 
+    log.debug("doStep: workUnit: %d, maxLevel: %d, depth: %d, totalWork: %d, workUnitsLeft: %d, workToDoHere: %d"
+      .format(workUnit, maxLevel, depth, totalWork, workUnitsLeft, workToDoHere))
+
     val workIncludingHere = previousWork + workToDoHere
+
+    log.debug("doStep: workIncludingHere: %d".format(workIncludingHere))
 
     val delegateRef = this.next match {
       case None => None
       case Some(n) => Option(sendCall(n, context, (StepLevel, workIncludingHere, stepSize)))
     }
 
+    log.debug("doStep: delegateRef: %s".format(delegateRef))
+
     val mergeRef = (workToDoHere > 0) match {
       case true => {
-        this.stepMergeRef match {
+        this.mergePid match {
           case Some(pid) => {
             val monitor = context.watch(pid)
             pid ! (Step, monitor, workToDoHere)
@@ -592,10 +607,14 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
       case false => None
     }
 
+    log.debug("doStep: mergeRef: %s".format(mergeRef))
+
     if(delegateRef.isEmpty && mergeRef.isEmpty) {
+      log.debug("doStep: delegateRef.isEmpty && mergeRef.isEmpty")
       this.stepCaller = stepFrom
       replyStepOk()
     } else {
+      log.debug("doStep: delegateRef.isDefinded || mergeRef.isDefined")
       this.stepNextRef = delegateRef
       this.stepCaller = stepFrom
       this.stepMergeRef = mergeRef
