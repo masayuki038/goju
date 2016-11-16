@@ -4,9 +4,11 @@ import java.io.File
 
 import akka.actor._
 import akka.util.Timeout
+import com.typesafe.scalalogging.Logger
 import net.wrap_trap.goju.Constants.Value
 import net.wrap_trap.goju.Goju._
 import net.wrap_trap.goju.element.KeyValue
+import org.slf4j.LoggerFactory
 
 import scala.concurrent.duration._
 
@@ -19,6 +21,7 @@ import scala.concurrent.duration._
   * http://opensource.org/licenses/mit-license.php
   */
 object Goju extends PlainRpc {
+  val log = Logger(LoggerFactory.getLogger(Goju.getClass))
   val callTimeout = Settings.getSettings().getInt("goju.call_timeout", 300)
   implicit val timeout = Timeout(callTimeout seconds)
 
@@ -71,7 +74,7 @@ class Goju(val dirPath: String) extends PlainRpc {
       }
     }}
     val nurseryFile = new File(this.dirPath + java.io.File.separator + Nursery.DATA_FILENAME)
-    if(!nurseryFile.delete) {
+    if(nurseryFile.exists && !nurseryFile.delete()) {
       throw new IllegalStateException("Failed to delete nursery file: " + nurseryFile.getAbsolutePath)
     }
     val (ref, maxMerge) =
@@ -95,13 +98,16 @@ class Goju(val dirPath: String) extends PlainRpc {
   }
 
   def close(): Unit = {
+    log.debug("close")
     try {
       Nursery.finish(this.nursery.get, this.topLevelRef.get)
       val min = Level.level(this.topLevelRef.get)
       this.nursery = Option(Nursery.newNursery(this.dirPath, min, this.maxLevel.get))
       Level.close(this.topLevelRef.get)
     } catch {
-      case ignore => {}
+      case ignore => {
+        log.warn("Failed to Goju#close", ignore)
+      }
     }
   }
 
@@ -112,7 +118,9 @@ class Goju(val dirPath: String) extends PlainRpc {
       Level.destroy(this.topLevelRef.get)
       this.maxLevel = Option(topLevelNumber)
     } catch {
-      case ignore => {}
+      case ignore => {
+        log.warn("Failed to Goju#destroy", ignore)
+      }
     }
   }
 
@@ -121,10 +129,10 @@ class Goju(val dirPath: String) extends PlainRpc {
       case Some(e) => Option(e.value)
       case None => {
         Level.lookup(this.topLevelRef.get, key) match {
-          case kv: KeyValue => {
+          case Some(kv: KeyValue) => {
             Option(kv.value)
           }
-          case _ => None
+          case None => None
         }
       }
     }
@@ -139,11 +147,11 @@ class Goju(val dirPath: String) extends PlainRpc {
   }
 
   def put(key: Array[Byte], value: Value): Unit = {
-    Nursery.add(key, value, this.nursery.get, this.topLevelRef.get)
+    this.nursery = Option(Nursery.add(key, value, this.nursery.get, this.topLevelRef.get))
   }
 
   def put(key: Array[Byte], value: Value, keyExpireSecs: Int): Unit = {
-    Nursery.add(key, value, keyExpireSecs, this.nursery.get, this.topLevelRef.get)
+    this.nursery = Option(Nursery.add(key, value, keyExpireSecs, this.nursery.get, this.topLevelRef.get))
   }
 
   def transact(transactionSpecs: List[(TransactionOp, Any)]): Unit = {

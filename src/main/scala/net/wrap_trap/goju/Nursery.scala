@@ -1,6 +1,8 @@
 package net.wrap_trap.goju
 
+import com.typesafe.scalalogging.Logger
 import org.hashids.Hashids
+import org.slf4j.LoggerFactory
 
 import collection.JavaConversions._
 import java.io.{FileOutputStream, File}
@@ -21,6 +23,8 @@ import net.wrap_trap.goju.element.{KeyValue, Element}
   * http://opensource.org/licenses/mit-license.php
   */
 object Nursery {
+  val log = Logger(LoggerFactory.getLogger(Nursery.getClass))
+
   val LOG_FILENAME = "nursery.log"
   val DATA_FILENAME = "nursery.data"
 
@@ -30,6 +34,7 @@ object Nursery {
   }
 
   def flush(nursery: Nursery, top: ActorRef): Nursery = {
+    log.debug("flush")
     val logFile = new File(nursery.dirPath + java.io.File.separator + Nursery.LOG_FILENAME)
     finish(nursery, logFile, top)
     if(logFile.exists) {
@@ -38,13 +43,15 @@ object Nursery {
     newNursery(nursery.dirPath, nursery.minLevel, nursery.maxLevel)
   }
 
-  def add(key: Array[Byte], value: Value, nursery: Nursery, top: ActorRef): Unit = {
+  def add(key: Array[Byte], value: Value, nursery: Nursery, top: ActorRef): Nursery = {
     add(key, value, 0, nursery, top)
   }
 
-  def add(key: Array[Byte], value: Value, keyExpireSecs: Int, nursery: Nursery, top: ActorRef): Unit = {
+  def add(key: Array[Byte], value: Value, keyExpireSecs: Int, nursery: Nursery, top: ActorRef): Nursery = {
     if(nursery.doAdd(key, value, keyExpireSecs, top)) {
       flush(nursery, top)
+    } else {
+      nursery
     }
   }
 
@@ -62,6 +69,7 @@ object Nursery {
   }
 
   def doRecover(logFile: File, topLevel: ActorRef, minLevel: Int, maxLevel: Int): Unit = {
+    log.debug("doRecover: minLevel: %d, maxLevel: %d".format(minLevel, maxLevel))
     val nursery = readNurseryFromLog(logFile, minLevel, maxLevel)
     finish(nursery, logFile, topLevel)
     if(logFile.exists) {
@@ -70,6 +78,7 @@ object Nursery {
   }
 
   def ensureSpace(nursery: Nursery, neededRooms: Int, top: ActorRef): Nursery = {
+    log.debug("ensureSpace: neededRooms: %d".format(neededRooms))
     if(nursery.hasRoom(neededRooms)) {
       nursery
     } else {
@@ -78,14 +87,16 @@ object Nursery {
   }
 
   def finish(nursery: Nursery, topLevel: ActorRef): Unit = {
+    log.debug("finish: nursery: %s, topLevel: %s".format(nursery, topLevel))
     val logFile = new File(nursery.dirPath + java.io.File.separator + LOG_FILENAME)
     finish(nursery, logFile, topLevel)
   }
 
-  private def finish(nursery: Nursery, logFile: File, topLevel: ActorRef): Unit = {
+  private def finish(nursery: Nursery, logFilae: File, topLevel: ActorRef): Unit = {
+    log.debug("finish: nursery: %s, logFile: %s, topLevel: %s".format(nursery, logFilae, topLevel))
     Utils.ensureExpiry
 
-    if(nursery.count > 0) {
+    if(nursery.tree.size > 0) {
       val btreeFileName = nursery.dirPath + java.io.File.separator + DATA_FILENAME
       val writer = Writer.open(btreeFileName)
       try {
@@ -113,10 +124,11 @@ object Nursery {
 }
 
 class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tree: TreeMap[Key, Element]) {
+  val log = Logger(LoggerFactory.getLogger(Nursery.getClass))
+
   implicit val hashids = Hashids.reference(this.hashCode.toString)
   val logger = new FileOutputStream(dirPath + java.io.File.separator + Nursery.LOG_FILENAME, true)
   var lastSync = System.currentTimeMillis
-  var count = tree.size
   var step = 0
   var mergeDone = 0
 
@@ -125,8 +137,8 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
   }
 
   def destroy() = {
-    logger.close
-    new File(dirPath + java.io.File.separator + Nursery.LOG_FILENAME).delete()
+    this.logger.close
+    Utils.deleteFile(this.dirPath + java.io.File.separator + Nursery.LOG_FILENAME)
   }
 
   def doAdd(rawKey: Array[Byte], value: Value, keyExpireSecs: Int, top: ActorRef): Boolean = {
@@ -195,7 +207,8 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
   }
 
   def hasRoom(n: Int): Boolean = {
-    (count + n + 1) < (1 << this.minLevel)
+    log.debug("hasRoom: this.tree.size: %d, n: %d, this.minLevel: %d".format(this.tree.size, n, this.minLevel))
+    (this.tree.size + n + 1) < (1 << this.minLevel)
   }
 
   def transact(transactionSpecs: List[(TransactionOp, Any)], top: ActorRef) = {
@@ -217,8 +230,6 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
     ops.foreach(op => {
       tree.put(op.key, op)
     })
-
-    this.count = tree.size
   }
 
   def doLevelFold(foldWorkerPid: ActorRef, range: KeyRange): Unit = {

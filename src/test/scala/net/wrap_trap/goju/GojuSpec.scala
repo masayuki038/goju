@@ -22,17 +22,34 @@ class GojuSpec extends TestKit(ActorSystem("goju"))
   with StopSystemAfterAll
   with BeforeAndAfter
   with PlainRpc {
+
   before {
-    val ret = new File("test-data").delete()
-    println("deleted: " + ret)
+    TestHelper.deleteDirectory(new File("test-data"))
   }
 
-  "Open, put and get" should "return a value" in {
+  "Open, put and get" should "return the value" in {
+    import org.scalatest.OptionValues._
+
     val goju = Goju.open("test-data")
     val key = Utils.toBytes("data")
     val value = Utils.to8Bytes(77)
     goju.put(key, value)
-    val ret = goju.get(key)
-    ret shouldBe Some(value)
+    val optionValue = goju.get(key)
+    optionValue should be(defined)
+    optionValue.value should be(value)
+    goju.destroy()
+  }
+
+  "Put multi-bytes strings and get" should "return the value" in {
+    import org.scalatest.OptionValues._
+
+    val goju = Goju.open("test-data")
+    val key = Utils.toBytes("テスト")
+    val value = Utils.toBytes("太郎")
+    goju.put(key, value)
+    val optionValue = goju.get(key)
+    optionValue should be(defined)
+    optionValue.value should be(value)
+    goju.destroy()
   }
 }

@@ -8,6 +8,7 @@ import akka.util.Timeout
 import com.typesafe.scalalogging.Logger
 import net.wrap_trap.goju.Constants.Value
 import net.wrap_trap.goju.element.Element
+import net.wrap_trap.goju.element.KeyValue
 import org.hashids.Hashids
 import org.hashids.syntax._
 import org.slf4j.LoggerFactory
@@ -38,8 +39,11 @@ object Level extends PlainRpc {
     }
   }
 
-  def lookup(ref: ActorRef, key: Array[Byte]): Any = {
-    call(ref, (Lookup, key))
+  def lookup(ref: ActorRef, key: Array[Byte]): Option[KeyValue] = {
+    call(ref, (Lookup, key)) match {
+      case NotFound => None
+      case kv: KeyValue => Option(kv)
+    }
   }
 
   def lookup(ref: ActorRef, key: Array[Byte], f: Option[Value] => Unit): Unit = {
@@ -243,7 +247,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
     case (PlainRpcProtocol.call, (Lookup, key: Array[Byte])) => {
       doLookup(key, List(this.cReader, this.bReader, this.aReader), this.next) match {
         case NotFound => sendReply(sender(), NotFound)
-        case (Found, value) => sendReply(sender(), value)
+        case (Found, kv) => sendReply(sender(), kv)
         case (Delegate, pid: ActorRef) => pid ! (PlainRpcProtocol.call, (Lookup, key))
       }
     }
@@ -647,7 +651,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
       case List(None, _*) => doLookup(key, list.tail, next)
       case List(Some(reader), _*) => {
         reader.lookup(key) match {
-          case Some(v) => v
+          case Some(kv) => (Found, kv)
           case None => {
             // TODO if value is tombstoned, stopping to call doLoockup recursively and return None
             doLookup(key, list.tail, next)

@@ -67,7 +67,7 @@ class RandomReader(val name: String) extends Reader {
     }
   }
 
-  def lookup(bytes: Array[Byte]): Option[Value] = {
+  def lookup(bytes: Array[Byte]): Option[KeyValue] = {
     val key = Key(bytes)
     this.bloom.member(key) match {
       case true => {
@@ -76,7 +76,7 @@ class RandomReader(val name: String) extends Reader {
             if(e.tombstoned || e.expired) {
               None
             } else {
-              Option(e.value)
+              Option(e)
             }
           }
           case None => None
