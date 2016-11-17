@@ -43,8 +43,8 @@ class MergeSpec extends TestKit(ActorSystem("test"))
     cast(merger, (Step, 2))
     expectMsg((PlainRpcProtocol.cast, (MergeDone, 2, OUT)))
     val reader = RandomReader.open(OUT)
-    reader.lookup(Utils.toBytes("foo")) should be(Option("bar"))
-    reader.lookup(Utils.toBytes("hoge")) should be(Option("hogehoge"))
+    reader.lookup(Utils.toBytes("foo")).get.value should be("bar")
+    reader.lookup(Utils.toBytes("hoge")).get.value should be("hogehoge")
     reader.close
   }
 
@@ -55,9 +55,9 @@ class MergeSpec extends TestKit(ActorSystem("test"))
     cast(merger, (Step, 3))
     expectMsg((PlainRpcProtocol.cast, (MergeDone, 3, OUT)))
     val reader = RandomReader.open(OUT)
-    reader.lookup(Utils.toBytes("foo")) should be(Option("bar"))
-    reader.lookup(Utils.toBytes("foo2")) should be(Option("bar2"))
-    reader.lookup(Utils.toBytes("hoge")) should be(Option("hogehoge"))
+    reader.lookup(Utils.toBytes("foo")).get.value should be("bar")
+    reader.lookup(Utils.toBytes("foo2")).get.value should be("bar2")
+    reader.lookup(Utils.toBytes("hoge")).get.value should be("hogehoge")
     reader.close
   }
 
@@ -68,9 +68,9 @@ class MergeSpec extends TestKit(ActorSystem("test"))
     cast(merger, (Step, 3))
     expectMsg((PlainRpcProtocol.cast, (MergeDone, 3, OUT)))
     val reader = RandomReader.open(OUT)
-    reader.lookup(Utils.toBytes("foo")) should be(Option("bar"))
-    reader.lookup(Utils.toBytes("hoge")) should be(Option("hogehoge"))
-    reader.lookup(Utils.toBytes("hoge2")) should be(Option("hogehoge2"))
+    reader.lookup(Utils.toBytes("foo")).get.value should be("bar")
+    reader.lookup(Utils.toBytes("hoge")).get.value should be("hogehoge")
+    reader.lookup(Utils.toBytes("hoge2")).get.value should be("hogehoge2")
     reader.close
   }
 
@@ -81,7 +81,7 @@ class MergeSpec extends TestKit(ActorSystem("test"))
     cast(merger, (Step, 1))
     expectMsg((PlainRpcProtocol.cast, (MergeDone, 1, OUT)))
     val reader = RandomReader.open(OUT)
-    reader.lookup(Utils.toBytes("foo")) should be(Option("bar"))
+    reader.lookup(Utils.toBytes("foo")).get.value should be("bar")
     reader.lookup(Utils.toBytes("hoge")) should be(None)
     reader.close
   }
@@ -93,7 +93,7 @@ class MergeSpec extends TestKit(ActorSystem("test"))
     cast(merger, (Step, 1))
     expectMsg((PlainRpcProtocol.cast, (MergeDone, 1, OUT)))
     val reader = RandomReader.open(OUT)
-    reader.lookup(Utils.toBytes("hoge")) should be(Option("hogehoge"))
+    reader.lookup(Utils.toBytes("hoge")).get.value should be("hogehoge")
     reader.lookup(Utils.toBytes("foo")) should be(None)
     reader.close
   }
