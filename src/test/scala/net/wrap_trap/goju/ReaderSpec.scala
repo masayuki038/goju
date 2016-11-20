@@ -42,13 +42,17 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
 
   "lookup" should "return 'bar'" in writtenByRandom { fileName =>
     val reader = RandomReader.open(fileName)
-    reader.lookup(Utils.toBytes("foo")) should be(Option("bar"))
+    val kv1 = reader.lookup(Utils.toBytes("foo"))
+    kv1 should be(defined)
+    kv1.get.value should be("bar")
     reader.destroy
   }
 
   "lookup" should "return 'hogehoge'" in writtenByRandom { fileName =>
     val reader = RandomReader.open(fileName)
-    reader.lookup(Utils.toBytes("hoge")) should be(Option("hogehoge"))
+    val kv1 = reader.lookup(Utils.toBytes("hoge"))
+    kv1 should be(defined)
+    kv1.get.value should be("hogehoge")
     reader.destroy
   }
 
@@ -175,7 +179,9 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
       (100, List.empty[Element]),
       KeyRange(Key(Utils.toBytes("foo")), false, None, true, Integer.MAX_VALUE))
     list.size should be(1)
-    list.find(p => p == "hogehoge") should be(Some("hogehoge"))
+    val kv1 = list.find(p => p == "hogehoge")
+    kv1 should be(defined)
+    kv1.get should be("hogehoge")
     reader.destroy
   }
 
