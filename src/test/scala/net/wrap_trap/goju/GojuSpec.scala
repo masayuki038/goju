@@ -23,7 +23,7 @@ class GojuSpec extends TestKit(ActorSystem("goju"))
   with BeforeAndAfter
   with PlainRpc {
 
-  before {
+  after {
     TestHelper.deleteDirectory(new File("test-data"))
   }
 
