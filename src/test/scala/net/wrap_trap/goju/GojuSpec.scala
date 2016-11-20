@@ -23,7 +23,7 @@ class GojuSpec extends TestKit(ActorSystem("goju"))
   with BeforeAndAfter
   with PlainRpc {
 
-  after {
+  before {
     TestHelper.deleteDirectory(new File("test-data"))
   }
 
@@ -50,6 +50,16 @@ class GojuSpec extends TestKit(ActorSystem("goju"))
     val optionValue = goju.get(key)
     optionValue should be(defined)
     optionValue.value should be(value)
+    goju.destroy()
+  }
+
+  "Put one that will be expired after 2 seconds and get" should "return None" in {
+    val goju = Goju.open("test-data")
+    val key = Utils.toBytes("expire-test")
+    val value = Utils.toBytes("hoge")
+    goju.put(key, value, 2)
+    Thread.sleep(3000)
+    goju.get(key) should not be(defined)
     goju.destroy()
   }
 }
