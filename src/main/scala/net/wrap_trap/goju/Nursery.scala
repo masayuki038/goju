@@ -190,7 +190,7 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
     element match {
       case kv: KeyValue => {
         if(kv.expired()) {
-          Option(new KeyValue(key, Constants.TOMBSTONE, kv.timestamp))
+          None
         } else {
           Option(kv)
         }

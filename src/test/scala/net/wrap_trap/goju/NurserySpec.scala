@@ -27,23 +27,23 @@ class NurserySpec extends TestKit(ActorSystem("test"))
   }
 
   "newNursery" should "return new Nursery" in {
-    val nursery = Nursery.newNursery(".", 1, 2)
+    val nursery = Nursery.newNursery(".", 8, 8)
     nursery.isInstanceOf[Nursery] should be(true)
     nursery.destroy()
   }
 
   "newNursery" should "create log file" in {
-    val nursery = Nursery.newNursery(".", 1, 2)
+    val nursery = Nursery.newNursery(".", 8, 8)
     new File("./nursery.log").exists should be(true)
     nursery.destroy()
   }
 
   def newNursery(testCode: (Nursery, ActorRef) => Any) {
-    testCode(Nursery.newNursery(".", 1, 2), TestActorRef[LevelSutbForRecover])
+    testCode(Nursery.newNursery(".", 8, 8), TestActorRef[LevelSutbForRecover])
   }
 
   def twoInNursery(testCode: (Nursery, ActorRef) => Any) {
-    val nursery = Nursery.newNursery(".", 1, 2)
+    val nursery = Nursery.newNursery(".", 8, 8)
     val top = TestActorRef[LevelSutbForRecover]
     Nursery.add(Utils.toBytes("foo"), "bar", 5, nursery, top)
     Nursery.add(Utils.toBytes("hoge"), "hogehoge", 10, nursery, top)
