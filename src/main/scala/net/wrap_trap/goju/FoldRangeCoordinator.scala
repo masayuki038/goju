@@ -2,9 +2,14 @@ package net.wrap_trap.goju
 
 import akka.actor.{Terminated, Props, ActorRef, Actor}
 import akka.util.Timeout
+import com.typesafe.scalalogging.Logger
 import net.wrap_trap.goju.Constants._
 import net.wrap_trap.goju.element.KeyValue
+import org.slf4j.LoggerFactory
 import scala.concurrent.duration._
+
+import org.hashids.Hashids
+import org.hashids.syntax._
 
 /**
   * goju-to: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
@@ -20,6 +25,9 @@ class FoldRangeCoordinator(val topLevelRef: ActorRef,
                            val func: (Key, Value, (Int, List[Value])) => (Int, List[Value]),
                            var acc: (Int, List[Value]))
   extends Actor with PlainRpc {
+  val log = Logger(LoggerFactory.getLogger(this.getClass))
+  implicit val hashids = Hashids.reference(this.hashCode.toString)
+
   val callTimeout = Settings.getSettings().getInt("goju.call_timeout", 300)
   implicit val timeout = Timeout(callTimeout seconds)
   var limit = range.limit
@@ -27,24 +35,29 @@ class FoldRangeCoordinator(val topLevelRef: ActorRef,
 
   def receive = {
     case (PlainRpcProtocol.call, Start) => {
+      log.debug("receive Start")
       this.owner = Option(sender)
       val foldWorkerRef = Utils.getActorSystem.actorOf(Props(classOf[FoldWorker], self))
       context.watch(foldWorkerRef)
 
+      val nurseryRef = System.nanoTime.hashid
+      foldWorkerRef ! (Prefix, List(nurseryRef))
+
       range.limit < 10 match {
         case true => {
           // BlockingRange
-          this.nursery.doLevelFold(foldWorkerRef, range)
           Level.blockingRange(this.topLevelRef, foldWorkerRef, range)
+          this.nursery.doLevelFold(foldWorkerRef, nurseryRef, range)
         }
         case false => {
           // SnapshotRange
-          this.nursery.doLevelFold(foldWorkerRef, range)
           Level.snapshotRange(this.topLevelRef, foldWorkerRef, range)
+          this.nursery.doLevelFold(foldWorkerRef, nurseryRef, range)
         }
       }
     }
     case (PlainRpcProtocol.call, (FoldResult, _, kv: KeyValue)) => {
+      log.debug("receive FoldResult")
       val foldWorkerRef = sender
       sendReply(sender, Ok)
       this.acc = func(kv.key, kv.value, this.acc)
@@ -56,16 +69,19 @@ class FoldRangeCoordinator(val topLevelRef: ActorRef,
       }
     }
     case (PlainRpcProtocol.cast, (FoldLimit, _, _)) => {
+      log.debug("receive FoldLimit")
       val foldWorkerRef = sender
       context.unwatch(foldWorkerRef)
       sendReply(this.owner.get, this.acc)
     }
     case (PlainRpcProtocol.cast, (FoldDone, _)) => {
+      log.debug("receive FoldDone")
       val foldWorkerRef = sender
       context.unwatch(foldWorkerRef)
       sendReply(this.owner.get, this.acc)
     }
     case Terminated => {
+      log.debug("receive Terminated")
       sendReply(this.owner.get, this.acc)
     }
   }

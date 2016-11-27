@@ -169,7 +169,8 @@ class Goju(val dirPath: String) extends PlainRpc {
     val coordinatorRef = system.actorOf(
       Props(classOf[FoldRangeCoordinator], this.topLevelRef.get, this.nursery.get, range, func, acc0))
     call(coordinatorRef, Start) match {
-      case results: List[Value] => {
+      case (count, results: List[Value]) => {
+        log.debug("foldRange, replied %d values".format(count))
         system.stop(coordinatorRef)
         results
       }

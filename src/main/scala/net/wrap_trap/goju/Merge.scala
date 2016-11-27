@@ -2,7 +2,9 @@ package net.wrap_trap.goju
 
 import akka.actor.{Actor, ActorRef}
 import akka.util.Timeout
+import com.typesafe.scalalogging.Logger
 import net.wrap_trap.goju.element.Element
+import org.slf4j.LoggerFactory
 import scala.concurrent.duration._
 
 /**
@@ -14,6 +16,8 @@ import scala.concurrent.duration._
   * http://opensource.org/licenses/mit-license.php
   */
 class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPath: String, val size: Int, val isLastLevel: Boolean) extends Actor with PlainRpc {
+  val log = Logger(LoggerFactory.getLogger(this.getClass))
+
   val aReader = SequentialReader.open(aPath)
   val bReader = SequentialReader.open(bPath)
   val out = Writer.open(outPath)
@@ -45,35 +49,35 @@ class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPa
   }
 
   def receive = {
-    case (PlainRpcProtocol.cast, msg) => handleCast(msg)
-  }
-
-  def handleCast(msg: Any) = {
-    msg match {
-      case (Step, howMany: Int) => {
-        this.n += howMany
-        if (cReader.isEmpty) {
-          scan()
-        } else {
-          scanOnly()
-        }
+    case (Step, howMany: Int) => {
+      log.debug("receive Step, howMany: %d".format(howMany))
+      this.n += howMany
+      if (cReader.isEmpty) {
+        scan()
+      } else {
+        scanOnly()
       }
-      // TODO handle system messages
     }
+    case msg => throw new IllegalStateException("An unexpected message received. msg: " + msg)
+    // TODO handle system messages
   }
 
   // Expect to call this method from "merge" only
   // Therefore, don't call back merging states to other actor
   private def scan()(implicit timeout: Timeout): Unit = {
+    log.debug("scan")
+
     val a = aKVs.get
     val b = bKVs.get
 
     if(n < 1 && a.nonEmpty && b.nonEmpty) {
+      log.debug("scan, n < 1 && a.nonEmpty && b.nonEmpty")
       // stop scan and do nothing
       return
     }
 
     if(a.isEmpty) {
+      log.debug("scan, a.isEmpty")
       aReader.nextNode() match {
         case Some(a2) => {
           this.aKVs = Option(a2)
@@ -91,6 +95,7 @@ class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPa
     }
 
     if(b.isEmpty) {
+      log.debug("scan, b.isEmpty")
       bReader.nextNode() match {
         case Some(b2) => {
           this.bKVs = Option(b2)
@@ -107,6 +112,7 @@ class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPa
       }
     }
 
+    log.debug("scan, n >= 1 and a.nonEmpty and b.nonEmpty")
     val aKV = a.head
     val bKV = b.head
     if(aKV.key < bKV.key) {
@@ -131,21 +137,27 @@ class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPa
   // Expect to call this method from "scan" only
   // Therefore, don't call back merging states to other actor
   private def scanOnly()(implicit timeout: Timeout): Unit = {
+    log.debug("scanOnly")
+
     val c = cKVs.get
     if(n < 1 && c.nonEmpty) {
       // stop scan and do nothing
+      log.debug("scanOnly, n < 1 && c.nonEmpty")
       return
     }
 
     if(c.isEmpty) {
+      log.debug("scanOnly, c.isEmpty")
       val reader = cReader.get
       reader.nextNode() match {
         case Some(c2) => {
+          log.debug("scanOnly, c.isEmpty, reader.nextNode() is Some(c2)")
           this.cKVs = Option(c2)
           scanOnly()
           return
         }
         case None => {
+          log.debug("scanOnly, c.isEmpty, reader.nextNode() is None")
           reader.close()
           val cnt = terminate()
           cast(owner, (MergeDone, cnt, outPath))
@@ -154,6 +166,7 @@ class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPa
       }
     }
 
+    log.debug("scanOnly, c >= 1 and c.nonEmpty")
     val cKV = c.head
     if(!cKV.tombstoned) {
       call(out, ('add, cKV))

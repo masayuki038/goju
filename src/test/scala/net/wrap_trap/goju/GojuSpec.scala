@@ -4,6 +4,8 @@ import java.io.File
 
 import akka.actor.{Actor, Props, ActorSystem}
 import akka.testkit.{TestActorRef, TestKit}
+import com.typesafe.scalalogging.Logger
+import org.slf4j.LoggerFactory
 import net.wrap_trap.goju.Constants.Value
 import net.wrap_trap.goju.element.{Element, KeyValue}
 import org.scalatest._
@@ -22,7 +24,7 @@ class GojuSpec extends TestKit(ActorSystem("goju"))
   with StopSystemAfterAll
   with BeforeAndAfter
   with PlainRpc {
-
+  val log = Logger(LoggerFactory.getLogger(this.getClass))
   before {
     TestHelper.deleteDirectory(new File("test-data"))
   }
@@ -60,6 +62,34 @@ class GojuSpec extends TestKit(ActorSystem("goju"))
     goju.put(key, value, 2)
     Thread.sleep(3000)
     goju.get(key) should not be(defined)
+    goju.destroy()
+  }
+
+  "Range scan" should "return values in the range" in {
+    val goju = Goju.open("test-data")
+    val key1 = Utils.toBytes("range-test1")
+    val value1 = Utils.toBytes("foo")
+    val key2 = Utils.toBytes("range-test2")
+    val value2 = Utils.toBytes("bar")
+    val key3 = Utils.toBytes("range-test3")
+    val value3 = Utils.toBytes("hoge")
+
+    goju.put(key1, value1)
+    goju.put(key2, value2)
+    goju.put(key3, value3)
+    val ret = goju.fold((k, v, acc) => {
+      log.debug("Range scan, k: %s".format(k))
+      val (count, list) = acc
+      k match {
+        case Key(k) if (k == key2 || k == key3) => (count + 1, v :: list)
+        case _ => (count, list)
+      }
+    }, (0, List.empty[Value]))
+
+    ret.length should be(2)
+    ret.contains(value1) should be(false)
+    ret.contains(value2) should be(true)
+    ret.contains(value3) should be(true)
     goju.destroy()
   }
 }

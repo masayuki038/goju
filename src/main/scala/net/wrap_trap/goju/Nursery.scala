@@ -1,7 +1,6 @@
 package net.wrap_trap.goju
 
 import com.typesafe.scalalogging.Logger
-import org.hashids.Hashids
 import org.slf4j.LoggerFactory
 
 import collection.JavaConversions._
@@ -9,8 +8,7 @@ import java.io.{FileOutputStream, File}
 import java.util.TreeMap
 
 import akka.actor.ActorRef
-import org.hashids.Hashids
-import org.hashids.syntax._
+
 import net.wrap_trap.goju.Constants.Value
 import net.wrap_trap.goju.element.{KeyValue, Element}
 
@@ -49,9 +47,9 @@ object Nursery {
 
   def add(key: Array[Byte], value: Value, keyExpireSecs: Int, nursery: Nursery, top: ActorRef): Nursery = {
     if(nursery.doAdd(key, value, keyExpireSecs, top)) {
-      flush(nursery, top)
-    } else {
       nursery
+    } else {
+      flush(nursery, top)
     }
   }
 
@@ -126,11 +124,11 @@ object Nursery {
 class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tree: TreeMap[Key, Element]) {
   val log = Logger(LoggerFactory.getLogger(Nursery.getClass))
 
-  implicit val hashids = Hashids.reference(this.hashCode.toString)
   val logger = new FileOutputStream(dirPath + java.io.File.separator + Nursery.LOG_FILENAME, true)
   var lastSync = System.currentTimeMillis
   var step = 0
   var mergeDone = 0
+  var totalSize = 0
 
   def this(dirPath: String, minLevel: Int, maxLevel: Int) = {
     this(dirPath, minLevel, maxLevel, new TreeMap[Key, Element])
@@ -142,6 +140,9 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
   }
 
   def doAdd(rawKey: Array[Byte], value: Value, keyExpireSecs: Int, top: ActorRef): Boolean = {
+    log.debug("doAdd, rawKey: %s, value: %s, keyExpireSecs: %d, top: %s"
+      .format(Utils.toHexStrings(rawKey), value, keyExpireSecs, top))
+
     val dbExpireSecs = Settings.getSettings().getInt("goju.expiry_secs", 0)
     val keyValue = (keyExpireSecs + dbExpireSecs == 0) match {
       case true => {
@@ -159,6 +160,10 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
     val data = Utils.encodeIndexNode(keyValue)
     logger.write(data)
     doSync()
+
+    this.totalSize += data.length
+    doIncMerge(1, top)
+
     hasRoom(1)
   }
 
@@ -197,7 +202,10 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
   }
 
   def doIncMerge(n: Int, top: ActorRef): Unit = {
+    log.debug("doIncMerge, n: %d, top: %s".format(n, top))
+    log.debug("doIncMerge, this.step: %d, this.minLevel: %d".format(this.step, this.minLevel))
     if(this.step + n >= (Utils.btreeSize(this.minLevel) / 2)) {
+      log.debug("doIncMerge, this.step + n >= (Utils.btreeSize(this.minLevel) / 2)")
       Level.beginIncrementalMerge(top, this.step + n)
       this.step = 0
       this.mergeDone = this.mergeDone + this.step + n
@@ -212,6 +220,7 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
   }
 
   def transact(transactionSpecs: List[(TransactionOp, Any)], top: ActorRef) = {
+    var size = 0
     val dbExpireSecs = Settings.getSettings().getInt("goju.expiry_secs", 0)
     val ops = transactionSpecs.map { spec =>
       spec match {
@@ -223,39 +232,46 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
     }
 
     ops.foreach(op => {
-      logger.write(Utils.encodeIndexNode(op))
+      val data = Utils.encodeIndexNode(op)
+      logger.write(data)
+      size += data.length
     })
     doSync()
 
     ops.foreach(op => {
       tree.put(op.key, op)
     })
+    this.totalSize += size
+    doIncMerge(ops.length, top)
   }
 
-  def doLevelFold(foldWorkerPid: ActorRef, range: KeyRange): Unit = {
-    val ref = System.nanoTime.hashid
-    foldWorkerPid ! (Prefix, ref)
+  def doLevelFold(foldWorkerPid: ActorRef, ref: String, range: KeyRange): Unit = {
+    log.debug("doLevelFold, foldWorkerPid: %s, ref: %s, range: %s".format(foldWorkerPid, ref, range))
     val (lastKey, count) = this.tree.foldLeft(None: Option[Key], range.limit){
       case ((lastKey, count), (k: Key, e: Element)) => {
-      (count == 0) match {
-        case true => (lastKey, count)
-        case false => {
-          if(range.keyInFromRange(k) && range.keyInToRange(k) && !e.expired()) {
-            foldWorkerPid ! (LevelResult, ref, e)
-            if(e.tombstoned()) {
-              (Option(e.key), count)
+        (count == 0) match {
+          case true => (lastKey, count)
+          case false => {
+            if (range.keyInFromRange(k) && range.keyInToRange(k) && !e.expired()) {
+              log.debug("doLevelFold, KeyValue found. key: %s".format(k))
+              foldWorkerPid !(LevelResult, ref, e)
+              if (e.tombstoned()) {
+                (Option(e.key), count)
+              } else {
+                (Option(e.key), count - 1)
+              }
             } else {
-              (Option(e.key), count - 1)
+              (lastKey, count)
             }
-          } else {
-            (lastKey, count)
           }
         }
       }
-    }}
+    }
     if(lastKey.isDefined && (count == 0)) {
+      log.debug("doLevelFold, got to limit. lastKey: %s".format(lastKey.get))
       foldWorkerPid ! (LevelLimit, ref, lastKey.get)
     } else {
+      log.debug("doLevelFold, finished")
       foldWorkerPid ! (LevelDone, ref)
     }
   }

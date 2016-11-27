@@ -38,9 +38,9 @@ trait Reader {
 
 case class ReaderNode(level: Int, members: List[Element] = List.empty)
 
-sealed abstract class FoldResult
-case object Done extends FoldResult
-case object Limit extends FoldResult
+
+case object Done
+case object Limit
 
 sealed abstract class FoldStatus
 case object Stop extends FoldStatus

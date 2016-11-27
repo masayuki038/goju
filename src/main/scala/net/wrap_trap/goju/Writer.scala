@@ -86,6 +86,7 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
           this.state = Option(newState)
         }
       }
+      case msg => throw new IllegalStateException("An unexpected message received. msg: " + msg)
     }
   }
 
@@ -106,6 +107,7 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
         val newState = archiveNodes(this.state.get)
         this.state = Option(newState)
       }
+      case msg => throw new IllegalStateException("An unexpected message received. msg: " + msg)
     }
   }
 

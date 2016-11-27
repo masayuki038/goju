@@ -94,12 +94,17 @@ object Level extends PlainRpc {
   }
 
   def snapshotRange(ref: ActorRef, foldWorkerRef: ActorRef, keyRange: KeyRange): Unit = {
-    val folders = call(ref, (InitSnapshotRangeFold, foldWorkerRef, keyRange))
+    log.debug("snapshotRange, ref: %s, foldWorkerRef: %s, keyRange: %s".format(ref, foldWorkerRef, keyRange))
+    val folders = call(ref, (InitSnapshotRangeFold, foldWorkerRef, keyRange, List.empty[String]))
+      .asInstanceOf[List[String]]
     foldWorkerRef ! (Initialize, folders)
   }
 
   def blockingRange(ref: ActorRef, foldWorkerRef: ActorRef, keyRange: KeyRange): Unit = {
-    val folders = call(ref, (InitBlockingRangeFold, foldWorkerRef, keyRange))
+    log.debug("blockingRange, ref: %s, foldWorkerRef: %s, keyRange.fromKey: %s, keyRange.toKey: %s"
+      .format(ref, foldWorkerRef, keyRange.fromKey, keyRange.toKey))
+    val folders = call(ref, (InitBlockingRangeFold, foldWorkerRef, keyRange, List.empty[String]))
+      .asInstanceOf[List[String]]
     foldWorkerRef ! (Initialize, folders)
   }
 }
@@ -218,16 +223,20 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
   }
 
   private def checkBeginMergeThenLoop(): Unit = {
-    log.debug("checkBeginMergeThenLoop")
+    log.debug("checkBeginMergeThenLoop, %s, %s, %s".format(aReader, bReader, mergePid))
     if(aReader.isDefined && bReader.isDefined && mergePid.isEmpty) {
+      log.debug("checkBeginMergeThenLoop, aReader.isDefined && bReader.isDefined && mergePid.isEmpty")
       val mergeRef = beginMerge()
       this.mergePid = Option(mergeRef)
       this.workDone = 0
+    } else {
+      log.debug("checkBeginMergeThenLoop, don't call beginMerge")
     }
     mainLoop()
   }
 
   private def beginMerge(): ActorRef = {
+    log.debug("beginMerge")
     val aFileName = filename("A")
     val bFileName = filename("B")
     val xFileName = filename("X")
@@ -259,14 +268,14 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
       }
     }
     case (PlainRpcProtocol.call, (Inject, fileName: String)) => {
+      log.debug("receive Inject: fileName: %s".format(fileName))
       val (toFileName, pos) = (this.aReader, this.bReader) match {
         case (None, None) => (filename("A"), 1)
         case (_, None) => (filename("B"), 2)
-        case (None, _) => (filename("C"), 3)
+        case (_, _) => (filename("C"), 3)
       }
-
+      log.debug("receive Inject, pos: " + pos)
       Utils.renameFile(fileName, toFileName)
-      sendReply(sender(), true)
 
       val newReader = Option(RandomReader.open(toFileName))
       pos match {
@@ -277,6 +286,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
         }
         case 3 => this.cReader = newReader
       }
+      sendReply(sender(), true)
     }
     case (PlainRpcProtocol.call, UnmergedCount) => sendReply(sender(), totalUnmerged)
     case (PlainRpcProtocol.cast, (SetMaxLevel, max: Int)) => {
@@ -364,36 +374,44 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
       sendReply(sender(), true)
       context.stop(self)
     }
-    case (PlainRpcProtocol.call, (InitSnapshotRangeFold, workerPid: ActorRef, range: KeyRange, list: List[ActorRef]))
+    case (PlainRpcProtocol.call, (InitSnapshotRangeFold, workerPid: ActorRef, range: KeyRange, refList: List[ActorRef]))
       if(this.folding.isEmpty) => {
+      log.debug("receive InitSnapshotRangeFold, workerPid: %s, range: %s, list: %s".format(workerPid, range, refList))
       val (nextList, foldingPids) = (this.aReader, this.bReader, this.cReader) match {
-        case (None, None, None) => (list, List.empty[ActorRef])
+        case (None, None, None) => {
+          log.debug("InitSnapshotRangeFold, case (None, None None)")
+          (refList, List.empty[ActorRef])
+        }
         case (_, None, None) => {
+          log.debug("InitSnapshotRangeFold, case (_, None None)")
           Files.createLink(Paths.get(filename("A")), Paths.get(filename("AF")))
           val pid0 = startRangeFold(filename("AF"), workerPid, range)
-          (pid0 :: list, List(pid0))
+          (pid0 :: refList, List(pid0))
         }
         case (_, _, None) => {
+          log.debug("InitSnapshotRangeFold, case (_, _, None)")
           Files.createLink(Paths.get(filename("A")), Paths.get(filename("AF")))
           val pidA = startRangeFold(filename("AF"), workerPid, range)
           Files.createLink(Paths.get(filename("B")), Paths.get(filename("BF")))
           val pidB = startRangeFold(filename("BF"), workerPid, range)
-          (List(pidA, pidB) ::: list, List(pidB, pidA))
+          (List(pidA, pidB) ::: refList, List(pidB, pidA))
         }
         case (_, _, _) => {
+          log.debug("InitSnapshotRangeFold, case (_, _, _)")
           Files.createLink(Paths.get(filename("A")), Paths.get(filename("AF")))
           val pidA = startRangeFold(filename("AF"), workerPid, range)
           Files.createLink(Paths.get(filename("B")), Paths.get(filename("BF")))
           val pidB = startRangeFold(filename("BF"), workerPid, range)
           Files.createLink(Paths.get(filename("C")), Paths.get(filename("CF")))
           val pidC = startRangeFold(filename("CF"), workerPid, range)
-          (List(pidA, pidB, pidC) ::: list, List(pidC, pidB, pidA))
+          (List(pidA, pidB, pidC) ::: refList, List(pidC, pidB, pidA))
         }
       }
 
+      log.debug("InitSnapshotRangeFold, this.next: %s".format(this.next))
       this.next match {
         case Some(n) =>sender() ! (PlainRpcProtocol.call, (InitSnapshotRangeFold, workerPid, range, nextList))
-        case _ => sendReply(sender(), (Ok, nextList.reverse))
+        case _ => sendReply(sender(), nextList.reverse)
       }
       this.folding = foldingPids
     }
@@ -402,6 +420,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
       this.folding = this.folding.filter(p => p != pid)
     }
     case (PlainRpcProtocol.call, (InitBlockingRangeFold, workerPid: ActorRef, range: KeyRange, refList: List[String])) => {
+      log.debug("receive InitBlockingRangeFold, workerPid: %s, range: %d, list: %s".format(workerPid, range, refList))
       val newRefList = (this.aReader, this.bReader, this.cReader) match {
         case (None, None, None) => refList
         case (Some(a), None, None) => {
@@ -437,6 +456,8 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
       }
     }
     case (PlainRpcProtocol.cast, (MergeDone, 0, outFileName: String)) => {
+      log.debug("receive (MergeDone, count: 0, outFileName: %s)".format(outFileName))
+
       Utils.deleteFile(outFileName)
       closeAndDeleteAAndB()
 
@@ -454,6 +475,9 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
     }
     case  (PlainRpcProtocol.cast, (MergeDone, count: Int, outFileName: String))
       if Utils.btreeSize(this.level) >= count && this.cReader.isEmpty && this.next.isEmpty => {
+      log.debug("receive (MergeDone, count: %d, outFileName: %s)".format(count, outFileName))
+      log.debug("if Utils.btreeSize(this.level) >= count && this.cReader.isEmpty && this.next.isEmpty")
+
       val mFileName = filename("M")
       Utils.renameFile(outFileName, mFileName)
       closeAndDeleteAAndB()
@@ -475,6 +499,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
       }
     }
     case  (PlainRpcProtocol.cast, (MergeDone, count: Int, outFileName: String)) => {
+      log.debug("receive (MergeDone, count: %d, outFileName: %s)".format(count, outFileName))
       if(next.isEmpty) {
         val level = Level.open(this.dirPath, this.level + 1, this.owner)
         this.owner.foreach{ o => o ! (BottomLevel, this.level + 1)}
@@ -603,7 +628,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
         this.mergePid match {
           case Some(pid) => {
             val monitor = context.watch(pid)
-            pid ! (Step, monitor, workToDoHere)
+            pid ! (Step, workToDoHere)
             Option(monitor)
           }
         }
@@ -618,7 +643,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
       this.stepCaller = stepFrom
       replyStepOk()
     } else {
-      log.debug("doStep: delegateRef.isDefinded || mergeRef.isDefined")
+      log.debug("doStep: delegateRef.isDefined || mergeRef.isDefined")
       this.stepNextRef = delegateRef
       this.stepCaller = stepFrom
       this.stepMergeRef = mergeRef

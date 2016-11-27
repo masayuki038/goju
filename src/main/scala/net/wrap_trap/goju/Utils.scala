@@ -120,12 +120,17 @@ object Utils {
     }
   }
 
-  def dumpBinary(bytes: Array[Byte], subject: String) = {
+  def toHexStrings(bytes: Array[Byte]): String = {
     val s = new StringBuilder
     for (b <- bytes) {
       s ++= (b & 0x000000ff).toInt.toHexString
       s += ' '
     }
+    s.result
+  }
+
+  def dumpBinary(bytes: Array[Byte], subject: String): Unit = {
+    val s = toHexStrings(bytes)
     log.debug(s"""$subject: $s""")
   }
 
