@@ -1,6 +1,6 @@
 package net.wrap_trap.goju
 
-import akka.actor.{Actor, ActorContext, ActorRef}
+import akka.actor.{ActorContext, ActorRef}
 import akka.pattern.ask
 import akka.util.Timeout
 import com.typesafe.scalalogging.Logger
@@ -17,7 +17,7 @@ import scala.concurrent.Await
   * This software is released under the MIT License.
   * http://opensource.org/licenses/mit-license.php
   */
-trait PlainRpc extends Actor {
+trait PlainRpcClient {
   val plainRpcLog = Logger(LoggerFactory.getLogger(this.getClass))
 
   def sendCall(pid: ActorRef, context: ActorContext, msg: Any): ActorRef = {

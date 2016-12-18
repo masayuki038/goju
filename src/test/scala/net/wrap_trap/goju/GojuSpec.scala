@@ -23,7 +23,7 @@ class GojuSpec extends TestKit(ActorSystem("goju"))
   with ShouldMatchers
   with StopSystemAfterAll
   with BeforeAndAfter
-  with PlainRpc {
+  with PlainRpcClient {
   val log = Logger(LoggerFactory.getLogger(this.getClass))
   before {
     TestHelper.deleteDirectory(new File("test-data"))
@@ -56,6 +56,7 @@ class GojuSpec extends TestKit(ActorSystem("goju"))
   }
 
   "Put one that will be expired after 2 seconds and get" should "return None" in {
+
     val goju = Goju.open("test-data")
     val key = Utils.toBytes("expire-test")
     val value = Utils.toBytes("hoge")
@@ -90,6 +91,19 @@ class GojuSpec extends TestKit(ActorSystem("goju"))
     ret.contains(value1) should be(false)
     ret.contains(value2) should be(true)
     ret.contains(value3) should be(true)
+    goju.destroy()
+  }
+
+  "Add 1024 entries" should "start to beginIncrementalMerge" in {
+    import org.scalatest.OptionValues._
+
+    val goju = Goju.open("test-data")
+    (1 to 1024).foreach(i => goju.put(Utils.toBytes("key" + i), Utils.toBytes("value" + i)))
+    Thread.sleep(5000L)
+    (1 to 1024).foreach(i => {
+      log.debug("i: %d".format(i))
+      goju.get(Utils.toBytes("key" + i)).value should be(Utils.toBytes("value" + i))
+    })
     goju.destroy()
   }
 }

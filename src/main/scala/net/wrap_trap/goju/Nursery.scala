@@ -207,8 +207,8 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
     if(this.step + n >= (Utils.btreeSize(this.minLevel) / 2)) {
       log.debug("doIncMerge, this.step + n >= (Utils.btreeSize(this.minLevel) / 2)")
       Level.beginIncrementalMerge(top, this.step + n)
-      this.step = 0
       this.mergeDone = this.mergeDone + this.step + n
+      this.step = 0
     } else {
       this.step = this.step + n
     }
@@ -216,7 +216,9 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
 
   def hasRoom(n: Int): Boolean = {
     log.debug("hasRoom: this.tree.size: %d, n: %d, this.minLevel: %d".format(this.tree.size, n, this.minLevel))
-    (this.tree.size + n + 1) < (1 << this.minLevel)
+    val hasRoom = (this.tree.size + n + 1) < (1 << this.minLevel)
+    log.debug("hasRoom: " + hasRoom)
+    hasRoom
   }
 
   def transact(transactionSpecs: List[(TransactionOp, Any)], top: ActorRef) = {

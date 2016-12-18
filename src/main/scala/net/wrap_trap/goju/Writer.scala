@@ -1,5 +1,7 @@
 package net.wrap_trap.goju
 
+import scala.annotation.tailrec
+
 import java.io.{ByteArrayOutputStream, FileOutputStream, BufferedOutputStream, DataOutputStream}
 import scala.concurrent.duration._
 
@@ -21,7 +23,7 @@ import net.wrap_trap.goju.Constants._
   * This software is released under the MIT License.
   * http://opensource.org/licenses/mit-license.php
   */
-object Writer extends PlainRpc {
+object Writer extends PlainRpcClient {
 
   def open(name: String): ActorRef = {
     Utils.getActorSystem.actorOf(Props(new Writer(name)))
@@ -34,12 +36,12 @@ object Writer extends PlainRpc {
   }
 
   def count(actorRef: ActorRef): Int = {
-    implicit val timeout = Timeout(5 seconds)
+    implicit val timeout = Timeout(30 seconds)
     call(actorRef, ('count)).asInstanceOf[Int]
   }
 
   def close(actorRef: ActorRef) = {
-    implicit val timeout = Timeout(5 seconds)
+    implicit val timeout = Timeout(30 seconds)
     call(actorRef, ('close))
   }
 }
@@ -120,6 +122,7 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
   }
 
   def archiveNodes(s: State): State = {
+    log.debug("archiveNode, file: %s".format(s.name))
     s.nodes match {
       case List() => {
         val bloomBin = SerDes.serializeBloom(s.bloom)
@@ -162,17 +165,19 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
     }
   }
 
-  def appendNode(level: Int, element: Element, s: State): State = {
+  @tailrec
+  final def appendNode(level: Int, element: Element, s: State): State = {
+    log.debug("appendNode, level: %d, element: %s, file: %s".format(level, element, s.name))
     s.nodes match {
       case List() => {
         val newState = s.copy(nodes = WriterNode(level) :: s.nodes)
-        appendNode(level, element, newState)
+        return appendNode(level, element, newState)
       }
       case List(node, _*) if(level < node.level) => {
-        val newState = s.copy(nodes = WriterNode(node.level) :: s.nodes.tail)
-        appendNode(level, element, newState)
+        val newState = s.copy(nodes = WriterNode(level = node.level - 1) :: s.nodes)
+        return appendNode(level, element, newState)
       }
-      case  List(node, _*) => {
+      case List(node, _*) => {
         node.members match {
           case List() => {
             // do nothing
@@ -202,7 +207,7 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
         )
 
         if(newSize >= newState.blockSize) {
-          flushNodeBuffer(s)
+          flushNodeBuffer(newState)
         } else {
           newState
         }
@@ -211,6 +216,7 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
   }
 
   def flushNodeBuffer(s: State): State = {
+    log.debug("flushNodeBuffer, file: %s".format(s.name))
     s.nodes match {
       case  node::rest => {
         val level = node.level

@@ -22,8 +22,9 @@ class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPa
   val bReader = SequentialReader.open(bPath)
   val out = Writer.open(outPath)
   var n = 0
-  var aKVs:Option[List[Element]] = None
-  var bKVs:Option[List[Element]] = None
+  var aKVs: Option[List[Element]] = None
+  var bKVs: Option[List[Element]] = None
+  var fromPid: Option[(ActorRef, ActorRef)] = None
 
   val writerTimeout = Settings.getSettings().getInt("goju.merge.writer_timeout", 300)
   implicit val timeout = Timeout(writerTimeout seconds)
@@ -49,9 +50,10 @@ class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPa
   }
 
   def receive = {
-    case (Step, howMany: Int) => {
+    case (Step, ref: ActorRef, howMany: Int) => {
       log.debug("receive Step, howMany: %d".format(howMany))
       this.n += howMany
+      this.fromPid = Option((sender, ref))
       if (cReader.isEmpty) {
         scan()
       } else {
@@ -71,8 +73,8 @@ class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPa
     val b = bKVs.get
 
     if(n < 1 && a.nonEmpty && b.nonEmpty) {
-      log.debug("scan, n < 1 && a.nonEmpty && b.nonEmpty")
-      // stop scan and do nothing
+      log.debug("scan, n(%d) < 1 && a.nonEmpty(%d) && b.nonEmpty(%d)".format(this.n, a.size, b.size))
+      fromPid.foreach { case (pid, ref) => pid ! (ref, StepDone) }
       return
     }
 
@@ -112,20 +114,23 @@ class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPa
       }
     }
 
-    log.debug("scan, n >= 1 and a.nonEmpty and b.nonEmpty")
+    log.debug("scan, n(%d) >= 1 and a.nonEmpty(%d) and b.nonEmpty(%d)".format(this.n, a.size, b.size))
     val aKV = a.head
     val bKV = b.head
     if(aKV.key < bKV.key) {
+      log.debug("scan, aKV.key < bKV.key")
       call(out, ('add, aKV))
       this.aKVs = Option(a.tail)
       this.n -= 1
       scan()
     } else if(aKV.key > bKV.key) {
+      log.debug("scan, aKV.key > bKV.key")
       call(out, ('add, bKV))
       this.bKVs = Option(b.tail)
       this.n -= 1
       scan()
     } else {
+      log.debug("scan, aKV.key == bKV.key")
       call(out, ('add, bKV))
       this.aKVs = Option(a.tail)
       this.bKVs = Option(b.tail)
@@ -141,8 +146,8 @@ class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPa
 
     val c = cKVs.get
     if(n < 1 && c.nonEmpty) {
-      // stop scan and do nothing
-      log.debug("scanOnly, n < 1 && c.nonEmpty")
+      log.debug("scanOnly, n(%d) < 1 && c.nonEmpty(%d)".format(this.n, c.size))
+      fromPid.foreach { case (pid, ref) => pid ! (ref, StepDone) }
       return
     }
 
@@ -161,6 +166,7 @@ class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPa
           reader.close()
           val cnt = terminate()
           cast(owner, (MergeDone, cnt, outPath))
+          context.stop(self)
           return
         }
       }
@@ -177,6 +183,7 @@ class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPa
   }
 
   private def terminate(): Int = {
+    log.debug("terminate()")
     val cnt = call(out, ('count))
     call(out, 'close)
     cnt.asInstanceOf[Int]

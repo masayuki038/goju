@@ -2,6 +2,7 @@ package net.wrap_trap.goju
 
 import java.io.File
 
+import akka.dispatch.sysmsg._
 import akka.actor._
 import akka.util.Timeout
 import com.typesafe.scalalogging.Logger
@@ -20,7 +21,7 @@ import scala.concurrent.duration._
   * This software is released under the MIT License.
   * http://opensource.org/licenses/mit-license.php
   */
-object Goju extends PlainRpc {
+object Goju extends PlainRpcClient {
   val log = Logger(LoggerFactory.getLogger(Goju.getClass))
   val callTimeout = Settings.getSettings().getInt("goju.call_timeout", 300)
   implicit val timeout = Timeout(callTimeout seconds)
@@ -32,7 +33,7 @@ object Goju extends PlainRpc {
   }
 }
 
-class Goju(val dirPath: String) extends PlainRpc {
+class Goju(val dirPath: String) extends PlainRpcClient {
   val dataFilePattern = ("^[^\\d]+-(\\d+).data$").r
   var nursery: Option[Nursery] = None
   var topLevelRef: Option[ActorRef] = None

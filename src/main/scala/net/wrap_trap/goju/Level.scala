@@ -23,7 +23,7 @@ import scala.concurrent.duration._
   * This software is released under the MIT License.
   * http://opensource.org/licenses/mit-license.php
   */
-object Level extends PlainRpc {
+object Level extends PlainRpcClient {
   val log = Logger(LoggerFactory.getLogger(Level.getClass))
   val callTimeout = Settings.getSettings().getInt("goju.level.call_timeout", 300)
   implicit val timeout = Timeout(callTimeout seconds)
@@ -40,7 +40,7 @@ object Level extends PlainRpc {
   }
 
   def lookup(ref: ActorRef, key: Array[Byte]): Option[KeyValue] = {
-    call(ref, (Lookup, key)) match {
+    call(ref, (Lookup, key, None)) match {
       case NotFound => None
       case kv: KeyValue => Option(kv)
     }
@@ -109,7 +109,9 @@ object Level extends PlainRpc {
   }
 }
 
-class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) extends Actor with PlainRpc {
+class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) extends Actor
+  with PlainRpc
+  with Stash {
   val log = Logger(LoggerFactory.getLogger(Level.getClass))
   implicit val hashids = Hashids.reference(this.hashCode.toString)
 
@@ -210,10 +212,11 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
         case Some(r) => 2 * Utils.btreeSize(this.level)
         case _ => Utils.btreeSize(this.level)
       }
-      mergeRef ! (Step, (self, watcher), progress)
+      val ref = System.nanoTime.hashid
+      mergeRef ! (Step, ref, progress)
 
       this.mergePid = Option(mergeRef)
-      this.stepMergeRef = Option(watcher)
+      this.stepMergeRef = Option(mergeRef)
       this.wip = Option(progress)
       this.workDone = 0
       mainLoop()
@@ -243,9 +246,10 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
 
     Utils.deleteFile(xFileName)
 
-    context.actorOf(
+    val merger = Utils.getActorSystem.actorOf(
       Props(classOf[Merge], self, aFileName, bFileName, xFileName, Utils.btreeSize(this.level + 1), next.isEmpty)
     )
+    context.watch(merger)
   }
 
   private def filename(prefix: String): String = {
@@ -253,11 +257,12 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
   }
 
   def receive = {
-    case (PlainRpcProtocol.call, (Lookup, key: Array[Byte])) => {
+    case (PlainRpcProtocol.call, (Lookup, key: Array[Byte], from: Option[ActorRef])) => {
+      val pid = from.getOrElse(sender)
       doLookup(key, List(this.cReader, this.bReader, this.aReader), this.next) match {
-        case NotFound => sendReply(sender(), NotFound)
-        case (Found, kv) => sendReply(sender(), kv)
-        case (Delegate, pid: ActorRef) => pid ! (PlainRpcProtocol.call, (Lookup, key))
+        case NotFound => sendReply(pid, NotFound)
+        case (Found, kv) => sendReply(pid, kv)
+        case (Delegate, next: ActorRef) => next ! (PlainRpcProtocol.call, (Lookup, key, Option(pid)))
       }
     }
     case (PlainRpcProtocol.cast, (Lookup, key: Array[Byte], f: (Option[Value] => Unit))) => {
@@ -267,8 +272,9 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
         case (Delegate, pid: ActorRef) => pid ! (PlainRpcProtocol.call, (Lookup, key, f))
       }
     }
-    case (PlainRpcProtocol.call, (Inject, fileName: String)) => {
-      log.debug("receive Inject: fileName: %s".format(fileName))
+    case (PlainRpcProtocol.call, (Inject, fileName: String)) if cReader.isEmpty => {
+      val from = sender
+      log.debug("receive Inject: fileName: %s, from: %s".format(fileName, from))
       val (toFileName, pos) = (this.aReader, this.bReader) match {
         case (None, None) => (filename("A"), 1)
         case (_, None) => (filename("B"), 2)
@@ -286,7 +292,10 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
         }
         case 3 => this.cReader = newReader
       }
-      sendReply(sender(), true)
+      sendReply(from, true)
+    }
+    case (PlainRpcProtocol.call, (Inject, fileName: String)) => {
+      stash()
     }
     case (PlainRpcProtocol.call, UnmergedCount) => sendReply(sender(), totalUnmerged)
     case (PlainRpcProtocol.cast, (SetMaxLevel, max: Int)) => {
@@ -301,6 +310,12 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
       sendReply(sender(), true)
       doStep(None, 0, stepSize)
     }
+    case (PlainRpcProtocol.call, (BeginIncrementalMerge, stepSize: Int)) => {
+      log.debug(
+        "receive BeginIncrementalMerge(stash), stepSize: %d, stepMergeRef: %s, stepNextRef: %s"
+          .format(stepSize, stepMergeRef, stepNextRef))
+      stash()
+    }
     case (PlainRpcProtocol.call, AwaitIncrementalMerge)
       if (this.stepMergeRef.isEmpty && this.stepNextRef.isEmpty) => {
       sendReply(sender(), true)
@@ -312,8 +327,9 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
     case (PlainRpcProtocol.call, Query) => {
       sendReply(sender(), this.level)
     }
-    case (monitorRef: ActorRef, StepDone) if (this.stepMergeRef.isDefined && monitorRef == this.stepMergeRef.get) => {
-      context.unwatch(monitorRef)
+    case (merger: ActorRef, StepDone) if (this.stepMergeRef.isDefined && merger == this.stepMergeRef.get) => {
+      log.debug("receive StepDone: ref: %s".format(merger))
+      context.unwatch(merger)
       this.wip match {
         case Some(w) => {
           this.workDone += w
@@ -325,8 +341,10 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
         case None => replyStepOk()
       }
       this.stepMergeRef = None
+      unstashAll()
     }
-    case e: Terminated if (this.stepMergeRef.isDefined && e.actor == this.stepMergeRef.get) => {
+    case e: Terminated => {
+      log.debug("received Terminated, e: %s, this.stepMergeRef.get: %s".format(e.actor, this.stepMergeRef))
       this.stepNextRef match {
         case Some(_) => // do nothing
         case None => replyStepOk()
@@ -470,6 +488,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
           Utils.renameFile(filename("C"), aFileName)
           this.aReader = Option(RandomReader.open(aFileName))
           this.cReader = None
+          unstashAll()
         }
       }
     }
@@ -490,15 +509,18 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
       this.cReader match {
         case None => this.bReader = None
         case Some(reader) => {
+          log.debug("receive (MergeDone, count: %d, outFileName: %s), cReader.isDefined".format(count, outFileName))
           reader.close()
           val bFileName = filename("B")
           Utils.renameFile(filename("C"), bFileName)
           this.bReader = Option(RandomReader.open(bFileName))
+          this.cReader = None
           checkBeginMergeThenLoop()
+          unstashAll()
         }
       }
     }
-    case  (PlainRpcProtocol.cast, (MergeDone, count: Int, outFileName: String)) => {
+    case (PlainRpcProtocol.cast, (MergeDone, count: Int, outFileName: String)) => {
       log.debug("receive (MergeDone, count: %d, outFileName: %s)".format(count, outFileName))
       if(next.isEmpty) {
         val level = Level.open(this.dirPath, this.level + 1, this.owner)
@@ -514,16 +536,21 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
         }
       }
     }
-    case (PlainRpcProtocol.reply, (mRef: ActorRef, Ok)) => {
-      this.context.unwatch(mRef)
+    case (PlainRpcProtocol.reply, ret: Boolean) if this.injectDoneRef.isDefined && sender == this.injectDoneRef.get => {
+      log.debug("received reply, true if this.injectDoneRef.isDefined && sender == this.injectDoneRef")
+      this.context.unwatch(sender)
       closeAndDeleteAAndB()
       this.cReader match {
         case None => // do nothing
         case Some(reader) => {
-          Utils.renameFile(filename("C"), filename("A"))
-          this.aReader = this.cReader
+          // If cReader already has been read halfway, lost the position of the reading by RandomReader#close
+          reader.close()
+          val aFileName = filename("A")
+          Utils.renameFile(filename("C"), aFileName)
+          this.aReader = Option(RandomReader.open(aFileName))
           this.bReader = None
           this.cReader = None
+          unstashAll()
         }
       }
     }
@@ -627,9 +654,9 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
       case true => {
         this.mergePid match {
           case Some(pid) => {
-            val monitor = context.watch(pid)
-            pid ! (Step, workToDoHere)
-            Option(monitor)
+           context.watch(pid)
+            pid ! (Step, pid, workToDoHere)
+            Option(pid)
           }
         }
       }

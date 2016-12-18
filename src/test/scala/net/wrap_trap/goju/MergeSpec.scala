@@ -6,6 +6,8 @@ import akka.actor.{Actor, Props, ActorSystem}
 import akka.testkit.{TestActorRef, TestKit}
 import net.wrap_trap.goju.Constants.Value
 import net.wrap_trap.goju.element.{Element, KeyValue}
+import org.hashids.Hashids
+import org.hashids.syntax._
 import org.scalatest._
 
 /**
@@ -21,7 +23,8 @@ class MergeSpec extends TestKit(ActorSystem("test"))
   with ShouldMatchers
   with StopSystemAfterAll
   with BeforeAndAfter
-  with PlainRpc {
+  with PlainRpcClient {
+  implicit val hashids = Hashids.reference(this.hashCode.toString)
 
   val A = "a"
   val B = "b"
@@ -40,7 +43,8 @@ class MergeSpec extends TestKit(ActorSystem("test"))
     writeAndClose(A, List((Key(Utils.toBytes("foo")), "bar")))
     writeAndClose(B, List((Key(Utils.toBytes("hoge")), "hogehoge")))
     val merger = TestActorRef(Props(classOf[Merge], testActor, A, B, OUT, 0, true))
-    merger ! (Step, 2)
+    val ref = System.nanoTime.hashid
+    merger ! (Step, ref, 2)
     expectMsg((PlainRpcProtocol.cast, (MergeDone, 2, OUT)))
     val reader = RandomReader.open(OUT)
     reader.lookup(Utils.toBytes("foo")).get.value should be("bar")
@@ -52,7 +56,8 @@ class MergeSpec extends TestKit(ActorSystem("test"))
     writeAndClose(A, List((Key(Utils.toBytes("foo")), "bar"), (Key(Utils.toBytes("foo2")), "bar2")))
     writeAndClose(B, List((Key(Utils.toBytes("hoge")), "hogehoge")))
     val merger = TestActorRef(Props(classOf[Merge], testActor, A, B, OUT, 0, true))
-    merger ! (Step, 3)
+    val ref = System.nanoTime.hashid
+    merger ! (Step, ref, 3)
     expectMsg((PlainRpcProtocol.cast, (MergeDone, 3, OUT)))
     val reader = RandomReader.open(OUT)
     reader.lookup(Utils.toBytes("foo")).get.value should be("bar")
@@ -65,7 +70,8 @@ class MergeSpec extends TestKit(ActorSystem("test"))
     writeAndClose(A, List((Key(Utils.toBytes("foo")), "bar")))
     writeAndClose(B, List((Key(Utils.toBytes("hoge")), "hogehoge"), (Key(Utils.toBytes("hoge2")), "hogehoge2")))
     val merger = TestActorRef(Props(classOf[Merge], testActor, A, B, OUT, 0, true))
-    merger ! (Step, 3)
+    val ref = System.nanoTime.hashid
+    merger ! (Step, ref, 3)
     expectMsg((PlainRpcProtocol.cast, (MergeDone, 3, OUT)))
     val reader = RandomReader.open(OUT)
     reader.lookup(Utils.toBytes("foo")).get.value should be("bar")
@@ -78,7 +84,8 @@ class MergeSpec extends TestKit(ActorSystem("test"))
     writeAndClose(A, List((Key(Utils.toBytes("foo")), "bar")))
     writeAndClose(B, List.empty[(Key, Value)])
     val merger = TestActorRef(Props(classOf[Merge], testActor, A, B, OUT, 0, true))
-    merger ! (Step, 1)
+    val ref = System.nanoTime.hashid
+    merger ! (Step, ref, 1)
     expectMsg((PlainRpcProtocol.cast, (MergeDone, 1, OUT)))
     val reader = RandomReader.open(OUT)
     reader.lookup(Utils.toBytes("foo")).get.value should be("bar")
@@ -90,7 +97,8 @@ class MergeSpec extends TestKit(ActorSystem("test"))
     writeAndClose(A, List.empty[(Key, Value)])
     writeAndClose(B, List((Key(Utils.toBytes("hoge")), "hogehoge")))
     val merger = TestActorRef(Props(classOf[Merge], testActor, A, B, OUT, 0, true))
-    merger ! (Step, 1)
+    val ref = System.nanoTime.hashid
+    merger ! (Step, ref, 1)
     expectMsg((PlainRpcProtocol.cast, (MergeDone, 1, OUT)))
     val reader = RandomReader.open(OUT)
     reader.lookup(Utils.toBytes("hoge")).get.value should be("hogehoge")

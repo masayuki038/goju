@@ -68,21 +68,35 @@ class RandomReader(val name: String) extends Reader {
   }
 
   def lookup(bytes: Array[Byte]): Option[KeyValue] = {
+    val strKey = Utils.toHexStrings(bytes)
+    log.debug("lookup, bytes: %s".format(strKey))
     val key = Key(bytes)
     this.bloom.member(key) match {
       case true => {
+        log.debug("lookup, bytes: %s, bloom.member: true".format(strKey))
         lookupInNode(key) match {
-          case Some(e:KeyValue) => {
+          case Some(e: KeyValue) => {
+            log.debug("lookup, bytes: %s, lookupInNode(key): true".format(strKey))
             if(e.tombstoned || e.expired) {
               None
             } else {
               Option(e)
             }
           }
-          case None => None
+          case Some(e: KeyRef) => {
+            log.debug("lookup, bytes: %s, lookupInNode(key): Some(PosLen)".format(strKey))
+            None
+          }
+          case None => {
+            log.debug("lookup, bytes: %s, lookupInNode(key): false".format(strKey))
+            None
+          }
         }
       }
-      case _ => None
+      case _ => {
+        log.debug("lookup, bytes: %s, bloom.member: false".format(strKey))
+        None
+      }
     }
   }
 
@@ -221,10 +235,18 @@ class RandomReader(val name: String) extends Reader {
 
   private  def find1(key: Key, members: List[Element]): Option[PosLen] = {
     members match {
-      case List(KeyRef(k1, pos, len), KeyValue(k2, _, _), _*) if key > k1 && key < k2 => Option(PosLen(pos, Option(len)))
+      case List(KeyRef(k1, pos, len), KeyRef(k2, _, _), _*) if key >= k1 && key < k2 => Option(PosLen(pos, Option(len)))
       case List(KeyRef(k1, pos, len)) if key >= k1 => Option(PosLen(pos, Option(len)))
-      case List(_, _) => None
       case List(_, _*) => find1(key, members.tail)
+      case List(_, _) => {
+        members match {
+          case List(KeyRef(k1, pos, len), KeyRef(k2, _, _), _*)  => {
+            log.warn("find1, return None, key: %s, members[0].keyRef: %s, members[1].keyRef: %s".format(
+              Utils.fromBytes(key.bytes), Utils.fromBytes(k1.bytes), Utils.fromBytes(k2.bytes)))
+          }
+        }
+        None
+      }
     }
   }
 
@@ -274,6 +296,7 @@ class RandomReader(val name: String) extends Reader {
   }
 
   private def findInLeaf(key: Key, members: List[Element]): Option[Element] = {
+    log.debug(members.map(e => Utils.fromBytes(e.key.bytes)).mkString(","))
     members.find(p => p.key == key)
   }
 
