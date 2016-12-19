@@ -30,6 +30,10 @@ class MergeSpec extends TestKit(ActorSystem("test"))
   val B = "b"
   val OUT = "out"
 
+  trait Factory {
+    val mergeTestActor = TestActorRef[MergeTestActor]
+  }
+
   private def writeAndClose(fileName: String, kvs: List[(Key, Value)]) = {
     val writer = Writer.open(fileName)
     for((key, value) <- kvs) {
@@ -39,12 +43,11 @@ class MergeSpec extends TestKit(ActorSystem("test"))
     Thread.sleep(1000L)
   }
 
-  "A1 and B1" should "merge A1 and B1" in {
+  "A1 and B1" should "merge A1 and B1" in new Factory {
     writeAndClose(A, List((Key(Utils.toBytes("foo")), "bar")))
     writeAndClose(B, List((Key(Utils.toBytes("hoge")), "hogehoge")))
     val merger = TestActorRef(Props(classOf[Merge], testActor, A, B, OUT, 0, true))
-    val ref = System.nanoTime.hashid
-    merger ! (Step, ref, 2)
+    merger ! (Step, mergeTestActor, 2)
     expectMsg((PlainRpcProtocol.cast, (MergeDone, 2, OUT)))
     val reader = RandomReader.open(OUT)
     reader.lookup(Utils.toBytes("foo")).get.value should be("bar")
@@ -52,12 +55,11 @@ class MergeSpec extends TestKit(ActorSystem("test"))
     reader.close
   }
 
-  "A1, A2 and B1" should "merge A1, A2 and B1" in {
+  "A1, A2 and B1" should "merge A1, A2 and B1" in new Factory {
     writeAndClose(A, List((Key(Utils.toBytes("foo")), "bar"), (Key(Utils.toBytes("foo2")), "bar2")))
     writeAndClose(B, List((Key(Utils.toBytes("hoge")), "hogehoge")))
     val merger = TestActorRef(Props(classOf[Merge], testActor, A, B, OUT, 0, true))
-    val ref = System.nanoTime.hashid
-    merger ! (Step, ref, 3)
+    merger ! (Step, mergeTestActor, 3)
     expectMsg((PlainRpcProtocol.cast, (MergeDone, 3, OUT)))
     val reader = RandomReader.open(OUT)
     reader.lookup(Utils.toBytes("foo")).get.value should be("bar")
@@ -66,12 +68,11 @@ class MergeSpec extends TestKit(ActorSystem("test"))
     reader.close
   }
 
-  "A1, B1 and B2" should "merge A1, B1 and B2" in {
+  "A1, B1 and B2" should "merge A1, B1 and B2" in new Factory {
     writeAndClose(A, List((Key(Utils.toBytes("foo")), "bar")))
     writeAndClose(B, List((Key(Utils.toBytes("hoge")), "hogehoge"), (Key(Utils.toBytes("hoge2")), "hogehoge2")))
     val merger = TestActorRef(Props(classOf[Merge], testActor, A, B, OUT, 0, true))
-    val ref = System.nanoTime.hashid
-    merger ! (Step, ref, 3)
+    merger ! (Step, mergeTestActor, 3)
     expectMsg((PlainRpcProtocol.cast, (MergeDone, 3, OUT)))
     val reader = RandomReader.open(OUT)
     reader.lookup(Utils.toBytes("foo")).get.value should be("bar")
@@ -80,12 +81,11 @@ class MergeSpec extends TestKit(ActorSystem("test"))
     reader.close
   }
 
-  "A1" should "be A1" in {
+  "A1" should "be A1" in new Factory {
     writeAndClose(A, List((Key(Utils.toBytes("foo")), "bar")))
     writeAndClose(B, List.empty[(Key, Value)])
     val merger = TestActorRef(Props(classOf[Merge], testActor, A, B, OUT, 0, true))
-    val ref = System.nanoTime.hashid
-    merger ! (Step, ref, 1)
+    merger ! (Step, mergeTestActor, 1)
     expectMsg((PlainRpcProtocol.cast, (MergeDone, 1, OUT)))
     val reader = RandomReader.open(OUT)
     reader.lookup(Utils.toBytes("foo")).get.value should be("bar")
@@ -93,12 +93,11 @@ class MergeSpec extends TestKit(ActorSystem("test"))
     reader.close
   }
 
-  "B1" should "be B1" in {
+  "B1" should "be B1" in new Factory {
     writeAndClose(A, List.empty[(Key, Value)])
     writeAndClose(B, List((Key(Utils.toBytes("hoge")), "hogehoge")))
     val merger = TestActorRef(Props(classOf[Merge], testActor, A, B, OUT, 0, true))
-    val ref = System.nanoTime.hashid
-    merger ! (Step, ref, 1)
+    merger ! (Step, mergeTestActor, 1)
     expectMsg((PlainRpcProtocol.cast, (MergeDone, 1, OUT)))
     val reader = RandomReader.open(OUT)
     reader.lookup(Utils.toBytes("hoge")).get.value should be("hogehoge")
@@ -110,5 +109,11 @@ class MergeSpec extends TestKit(ActorSystem("test"))
     new File(A).delete
     new File(B).delete
     new File(OUT).delete
+  }
+}
+
+class MergeTestActor extends Actor {
+  def receive = {
+    case _ => {}
   }
 }
