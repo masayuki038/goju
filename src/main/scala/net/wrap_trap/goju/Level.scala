@@ -311,9 +311,6 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
       doStep(None, 0, stepSize)
     }
     case (PlainRpcProtocol.call, (BeginIncrementalMerge, stepSize: Int)) => {
-      log.debug(
-        "receive BeginIncrementalMerge(stash), stepSize: %d, stepMergeRef: %s, stepNextRef: %s"
-          .format(stepSize, stepMergeRef, stepNextRef))
       stash()
     }
     case (PlainRpcProtocol.call, AwaitIncrementalMerge)
@@ -402,25 +399,25 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
         }
         case (_, None, None) => {
           log.debug("InitSnapshotRangeFold, case (_, None None)")
-          Files.createLink(Paths.get(filename("A")), Paths.get(filename("AF")))
+          Files.createLink(Paths.get(filename("AF")), Paths.get(filename("A")))
           val pid0 = startRangeFold(filename("AF"), workerPid, range)
           (pid0 :: refList, List(pid0))
         }
         case (_, _, None) => {
           log.debug("InitSnapshotRangeFold, case (_, _, None)")
-          Files.createLink(Paths.get(filename("A")), Paths.get(filename("AF")))
+          Files.createLink(Paths.get(filename("AF")), Paths.get(filename("A")))
           val pidA = startRangeFold(filename("AF"), workerPid, range)
-          Files.createLink(Paths.get(filename("B")), Paths.get(filename("BF")))
+          Files.createLink(Paths.get(filename("BF")), Paths.get(filename("B")))
           val pidB = startRangeFold(filename("BF"), workerPid, range)
           (List(pidA, pidB) ::: refList, List(pidB, pidA))
         }
         case (_, _, _) => {
           log.debug("InitSnapshotRangeFold, case (_, _, _)")
-          Files.createLink(Paths.get(filename("A")), Paths.get(filename("AF")))
+          Files.createLink(Paths.get(filename("AF")), Paths.get(filename("A")))
           val pidA = startRangeFold(filename("AF"), workerPid, range)
-          Files.createLink(Paths.get(filename("B")), Paths.get(filename("BF")))
+          Files.createLink(Paths.get(filename("BF")), Paths.get(filename("B")))
           val pidB = startRangeFold(filename("BF"), workerPid, range)
-          Files.createLink(Paths.get(filename("C")), Paths.get(filename("CF")))
+          Files.createLink(Paths.get(filename("CF")), Paths.get(filename("C")))
           val pidC = startRangeFold(filename("CF"), workerPid, range)
           (List(pidA, pidB, pidC) ::: refList, List(pidC, pidB, pidA))
         }
@@ -428,7 +425,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
 
       log.debug("InitSnapshotRangeFold, this.next: %s".format(this.next))
       this.next match {
-        case Some(n) =>sender() ! (PlainRpcProtocol.call, (InitSnapshotRangeFold, workerPid, range, nextList))
+        case Some(n) => n ! (PlainRpcProtocol.call, (InitSnapshotRangeFold, workerPid, range, nextList))
         case _ => sendReply(sender(), nextList.reverse)
       }
       this.folding = foldingPids
@@ -469,7 +466,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
         }
       }
       this.next match {
-        case Some(n) =>sender() ! (PlainRpcProtocol.call, (InitBlockingRangeFold, workerPid, range, newRefList))
+        case Some(n) => n ! (PlainRpcProtocol.call, (InitBlockingRangeFold, workerPid, range, newRefList))
         case _ => sendReply(sender(), (Ok, newRefList.reverse))
       }
     }
@@ -596,7 +593,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
   }
 
   private def startRangeFold(path: String, workerPid: ActorRef, range: KeyRange): ActorRef = {
-    context.actorOf(Props(classOf[RangeFolder], path, workerPid, sender(), range))
+    context.actorOf(Props(classOf[RangeFolder], path, workerPid, self, range))
   }
 
   private def destroyIfDefined(reader: Option[RandomReader]): Unit = {
