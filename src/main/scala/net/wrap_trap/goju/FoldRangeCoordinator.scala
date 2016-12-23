@@ -36,7 +36,9 @@ class FoldRangeCoordinator(val topLevelRef: ActorRef,
     case (PlainRpcProtocol.call, Start) => {
       log.debug("receive Start")
       this.owner = Option(sender)
-      val foldWorkerRef = Utils.getActorSystem.actorOf(Props(classOf[FoldWorker], self))
+      val foldWorkerRef = Utils.getActorSystem.actorOf(
+        Props(classOf[FoldWorker], self),
+        "foldWorker-" + System.currentTimeMillis)
       context.watch(foldWorkerRef)
 
       val nurseryRef = System.nanoTime.hashid

@@ -173,7 +173,8 @@ class Goju(val dirPath: String) extends PlainRpcClient {
                 range: KeyRange): List[Value] = {
     val system = Utils.getActorSystem
     val coordinatorRef = system.actorOf(
-      Props(classOf[FoldRangeCoordinator], this.topLevelRef.get, this.nursery.get, range, func, acc0))
+      Props(classOf[FoldRangeCoordinator], this.topLevelRef.get, this.nursery.get, range, func, acc0),
+      "foldRangeCoordinator-" + System.currentTimeMillis)
     call(coordinatorRef, Start) match {
       case (count, results: List[Value]) => {
         log.debug("foldRange, replied %d values".format(count))

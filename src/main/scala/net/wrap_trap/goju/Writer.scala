@@ -25,7 +25,7 @@ import net.wrap_trap.goju.Constants._
 object Writer extends PlainRpcClient {
 
   def open(name: String): ActorRef = {
-    Utils.getActorSystem.actorOf(Props(new Writer(name)))
+    Utils.getActorSystem.actorOf(Props(new Writer(name)), "writer-" + System.currentTimeMillis)
   }
 
   def add(actorRef: ActorRef, element: Element) = {

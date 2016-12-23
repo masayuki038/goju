@@ -29,7 +29,9 @@ object Level extends PlainRpcClient {
 
   def open(dirPath: String, level: Int, owner: Option[ActorRef]): ActorRef = {
     Utils.ensureExpiry
-    Utils.getActorSystem.actorOf(Props(classOf[Level], dirPath, level, owner))
+    Utils.getActorSystem.actorOf(
+      Props(classOf[Level], dirPath, level, owner),
+      "level%d-%d".format(level, System.currentTimeMillis))
   }
 
   def level(ref: ActorRef): Int = {
@@ -246,7 +248,8 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
     Utils.deleteFile(xFileName)
 
     val merger = Utils.getActorSystem.actorOf(
-      Props(classOf[Merge], self, aFileName, bFileName, xFileName, Utils.btreeSize(this.level + 1), next.isEmpty)
+      Props(classOf[Merge], self, aFileName, bFileName, xFileName, Utils.btreeSize(this.level + 1), next.isEmpty),
+      "merge-level%d-%d".format(this.level, System.currentTimeMillis)
     )
     context.watch(merger)
   }
@@ -592,7 +595,9 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
   }
 
   private def startRangeFold(path: String, workerPid: ActorRef, range: KeyRange): ActorRef = {
-    context.actorOf(Props(classOf[RangeFolder], path, workerPid, self, range))
+    context.actorOf(
+      Props(classOf[RangeFolder], path, workerPid, self, range),
+      "rangeFolder-level%d-%d".format(this.level, System.currentTimeMillis))
   }
 
   private def destroyIfDefined(reader: Option[RandomReader]): Unit = {
