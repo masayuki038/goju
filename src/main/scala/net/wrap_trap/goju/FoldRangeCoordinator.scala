@@ -2,10 +2,9 @@ package net.wrap_trap.goju
 
 import akka.actor.{Terminated, Props, ActorRef, Actor}
 import akka.util.Timeout
-import com.typesafe.scalalogging.Logger
+import akka.event.Logging
 import net.wrap_trap.goju.Constants._
 import net.wrap_trap.goju.element.KeyValue
-import org.slf4j.LoggerFactory
 import scala.concurrent.duration._
 
 import org.hashids.Hashids
@@ -25,7 +24,7 @@ class FoldRangeCoordinator(val topLevelRef: ActorRef,
                            val func: (Key, Value, (Int, List[Value])) => (Int, List[Value]),
                            var acc: (Int, List[Value]))
   extends Actor with PlainRpc {
-  val log = Logger(LoggerFactory.getLogger(this.getClass))
+  val log = Logging(context.system, this)
   implicit val hashids = Hashids.reference(this.hashCode.toString)
 
   val callTimeout = Settings.getSettings().getInt("goju.call_timeout", 300)

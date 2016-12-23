@@ -5,13 +5,12 @@ import java.nio.file.{Paths, Files}
 
 import akka.actor._
 import akka.util.Timeout
-import com.typesafe.scalalogging.Logger
+import akka.event.{LogSource, Logging}
 import net.wrap_trap.goju.Constants.Value
 import net.wrap_trap.goju.element.Element
 import net.wrap_trap.goju.element.KeyValue
 import org.hashids.Hashids
 import org.hashids.syntax._
-import org.slf4j.LoggerFactory
 
 import scala.concurrent.duration._
 
@@ -24,7 +23,7 @@ import scala.concurrent.duration._
   * http://opensource.org/licenses/mit-license.php
   */
 object Level extends PlainRpcClient {
-  val log = Logger(LoggerFactory.getLogger(Level.getClass))
+  val log = Logging(Utils.getActorSystem, this)
   val callTimeout = Settings.getSettings().getInt("goju.level.call_timeout", 300)
   implicit val timeout = Timeout(callTimeout seconds)
 
@@ -78,7 +77,7 @@ object Level extends PlainRpcClient {
       call(ref, Close)
     } catch {
       case ignore: Exception => {
-        log.warn("Failed to close ref: " + ref, ignore)
+        log.warning("Failed to close ref: " + ref, ignore)
       }
     }
   }
@@ -88,7 +87,7 @@ object Level extends PlainRpcClient {
       call(ref, Destroy)
     } catch {
       case ignore: Exception => {
-        log.warn("Failed to close ref: " + ref, ignore)
+        log.warning("Failed to close ref: " + ref, ignore)
       }
     }
   }
@@ -112,7 +111,7 @@ object Level extends PlainRpcClient {
 class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) extends Actor
   with PlainRpc
   with Stash {
-  val log = Logger(LoggerFactory.getLogger(Level.getClass))
+  val log = Logging(context.system, this)
   implicit val hashids = Hashids.reference(this.hashCode.toString)
 
   var aReader: Option[RandomReader] = None

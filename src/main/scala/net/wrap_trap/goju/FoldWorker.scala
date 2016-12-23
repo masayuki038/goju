@@ -1,9 +1,8 @@
 package net.wrap_trap.goju
 
 import akka.util.Timeout
-import com.typesafe.scalalogging.Logger
+import akka.event.Logging
 import net.wrap_trap.goju.element.{Element, KeyValue}
-import org.slf4j.LoggerFactory
 
 import scala.collection.mutable.Stack
 import akka.actor.{Terminated, Actor, ActorRef, Stash}
@@ -19,7 +18,7 @@ import scala.concurrent.duration._
   * http://opensource.org/licenses/mit-license.php
   */
 class FoldWorker(val sendTo: ActorRef) extends Actor with PlainRpc with Stash {
-  val log = Logger(LoggerFactory.getLogger(this.getClass))
+  val log = Logging(context.system, this)
 
   var prefixFolders = List.empty[String]
   var folding = List.empty[(String, Option[KeyValue])]

@@ -2,9 +2,8 @@ package net.wrap_trap.goju
 
 import akka.actor.{Actor, ActorRef}
 import akka.util.Timeout
-import com.typesafe.scalalogging.Logger
+import akka.event.Logging
 import net.wrap_trap.goju.element.Element
-import org.slf4j.LoggerFactory
 import scala.concurrent.duration._
 
 /**
@@ -16,7 +15,7 @@ import scala.concurrent.duration._
   * http://opensource.org/licenses/mit-license.php
   */
 class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPath: String, val size: Int, val isLastLevel: Boolean) extends Actor with PlainRpc {
-  val log = Logger(LoggerFactory.getLogger(this.getClass))
+  val log = Logging(context.system, this)
 
   val aReader = SequentialReader.open(aPath)
   val bReader = SequentialReader.open(bPath)

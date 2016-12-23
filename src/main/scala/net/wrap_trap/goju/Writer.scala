@@ -7,8 +7,7 @@ import scala.concurrent.duration._
 
 import akka.actor.{ActorRef, Props, Actor}
 import akka.util.Timeout
-import com.typesafe.scalalogging.Logger
-import org.slf4j.LoggerFactory
+import akka.event.Logging
 
 import net.wrap_trap.goju.element.{KeyValue, KeyRef, Element}
 import net.wrap_trap.goju.Helper._
@@ -47,7 +46,7 @@ object Writer extends PlainRpcClient {
 }
 
 class Writer(val name: String, var state: Option[State] = None) extends PlainRpc with Actor {
-  val log = Logger(LoggerFactory.getLogger(Writer.getClass))
+  val log = Logging(context.system, this)
 
   val NODE_SIZE = 8*1024
 
@@ -223,7 +222,7 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
 
         val orderedMembers = node.members.reverse
         val blockData = Utils.encodeIndexNodes(orderedMembers, Compress(Constants.COMPRESS_PLAIN))
-        if(log.underlying.isDebugEnabled) {
+        if(log.isDebugEnabled) {
           Utils.dumpBinary(blockData,"flushNode#blockData" )
         }
         val data = Utils.to4Bytes(blockData.size + 2) ++ Utils.to2Bytes(level) ++ blockData

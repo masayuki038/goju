@@ -2,9 +2,8 @@ package net.wrap_trap.goju
 
 import java.io.ByteArrayInputStream
 
-import com.typesafe.scalalogging.Logger
+import akka.event.{Logging, LogSource}
 import net.wrap_trap.goju.Helper._
-import org.slf4j.LoggerFactory
 import net.wrap_trap.goju.element.Element
 
 /**
@@ -16,7 +15,8 @@ import net.wrap_trap.goju.element.Element
   * http://opensource.org/licenses/mit-license.php
   */
 trait Reader {
-  val log = Logger(LoggerFactory.getLogger(this.getClass))
+  implicit val logSource: LogSource[AnyRef] = new GojuLogSource()
+  val log = Logging(Utils.getActorSystem, this)
 
   def skip(n: Long): Unit
 

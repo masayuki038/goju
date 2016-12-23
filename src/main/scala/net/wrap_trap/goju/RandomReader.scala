@@ -180,7 +180,7 @@ class RandomReader(val name: String) extends Reader {
           val level = this.randomAccessFile.readShort
           val buf = new Array[Byte](len - 2)
           this.randomAccessFile.read(buf)
-          if(log.underlying.isDebugEnabled) {
+          if(log.isDebugEnabled) {
             Utils.dumpBinary(buf, "readNode#buf")
           }
           val entryList = Utils.decodeIndexNodes(buf, Compress(Constants.COMPRESS_PLAIN))
@@ -241,7 +241,7 @@ class RandomReader(val name: String) extends Reader {
       case List(_, _) => {
         members match {
           case List(KeyRef(k1, pos, len), KeyRef(k2, _, _), _*)  => {
-            log.warn("find1, return None, key: %s, members[0].keyRef: %s, members[1].keyRef: %s".format(
+            log.warning("find1, return None, key: %s, members[0].keyRef: %s, members[1].keyRef: %s".format(
               Utils.fromBytes(key.bytes), Utils.fromBytes(k1.bytes), Utils.fromBytes(k2.bytes)))
           }
         }
@@ -333,7 +333,7 @@ class RandomReader(val name: String) extends Reader {
 
   def delete(): Unit = {
     if(!file.delete) {
-      log.warn("Failed to delete file: " + name)
+      log.warning("Failed to delete file: " + name)
     }
   }
 }

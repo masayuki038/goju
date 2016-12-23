@@ -3,9 +3,8 @@ package net.wrap_trap.goju
 import akka.actor.{Actor, ActorContext, ActorRef}
 import akka.pattern.ask
 import akka.util.Timeout
-import com.typesafe.scalalogging.Logger
+import akka.event.Logging
 import net.wrap_trap.goju.PlainRpcProtocol._
-import org.slf4j.LoggerFactory
 
 import scala.concurrent.Await
 
@@ -18,7 +17,7 @@ import scala.concurrent.Await
   * http://opensource.org/licenses/mit-license.php
   */
 trait PlainRpc extends Actor {
-  val plainRpcLog = Logger(LoggerFactory.getLogger(this.getClass))
+  val plainRpcLog = Logging(context.system, this)
 
   def sendCall(pid: ActorRef, context: ActorContext, msg: Any): ActorRef = {
     plainRpcLog.debug("sendCall, pid: %s, context: %s, msg: %s".format(pid, context, msg))

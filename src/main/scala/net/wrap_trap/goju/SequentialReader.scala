@@ -2,9 +2,8 @@ package net.wrap_trap.goju
 
 import java.io.{File, FileInputStream, BufferedInputStream}
 
-import com.typesafe.scalalogging.Logger
+import akka.event.{LogSource, Logging}
 import net.wrap_trap.goju.element.Element
-import org.slf4j.LoggerFactory
 
 /**
   * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
@@ -15,7 +14,8 @@ import org.slf4j.LoggerFactory
   * http://opensource.org/licenses/mit-license.php
   */
 object SequentialReader {
-  val log = Logger(LoggerFactory.getLogger(SequentialReader.getClass))
+  implicit val logSource: LogSource[AnyRef] = new GojuLogSource()
+  val log = Logging(Utils.getActorSystem, this)
 
   def open(name: String): SequentialReader = {
     new SequentialReader(name)
@@ -46,14 +46,14 @@ class SequentialReader(val name: String) extends Reader {
       inputStream.close
     } catch {
       case ignore: Exception => {
-        log.warn("Failed to close inputStream", ignore)
+        log.warning("Failed to close inputStream", ignore)
       }
     }
   }
 
   def delete(): Unit = {
     if(!file.delete) {
-      log.warn("Failed to delete file: " + name)
+      log.warning("Failed to delete file: " + name)
     }
   }
 
@@ -101,7 +101,7 @@ class SequentialReader(val name: String) extends Reader {
           val level = this.inputStream.readShort
           val buf = new Array[Byte](len - 2)
           this.inputStream.read(buf)
-          if(log.underlying.isDebugEnabled) {
+          if(log.isDebugEnabled) {
             Utils.dumpBinary(buf, "readNode#buf")
           }
           val entryList = Utils.decodeIndexNodes(buf, Compress(Constants.COMPRESS_PLAIN))

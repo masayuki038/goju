@@ -1,14 +1,10 @@
 package net.wrap_trap.goju
 
-import com.typesafe.scalalogging.Logger
-import org.slf4j.LoggerFactory
-
+import akka.actor.ActorRef
+import akka.event.{LogSource, Logging}
 import collection.JavaConversions._
 import java.io.{FileOutputStream, File}
 import java.util.TreeMap
-
-import akka.actor.ActorRef
-
 import net.wrap_trap.goju.Constants.Value
 import net.wrap_trap.goju.element.{KeyValue, Element}
 
@@ -21,7 +17,8 @@ import net.wrap_trap.goju.element.{KeyValue, Element}
   * http://opensource.org/licenses/mit-license.php
   */
 object Nursery {
-  val log = Logger(LoggerFactory.getLogger(Nursery.getClass))
+  implicit val logSource: LogSource[AnyRef] = new GojuLogSource()
+  val log = Logging(Utils.getActorSystem, this)
 
   val LOG_FILENAME = "nursery.log"
   val DATA_FILENAME = "nursery.data"
@@ -122,7 +119,7 @@ object Nursery {
 }
 
 class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tree: TreeMap[Key, Element]) {
-  val log = Logger(LoggerFactory.getLogger(Nursery.getClass))
+  val log = Logging(Utils.getActorSystem, this)
 
   val logger = new FileOutputStream(dirPath + java.io.File.separator + Nursery.LOG_FILENAME, true)
   var lastSync = System.currentTimeMillis

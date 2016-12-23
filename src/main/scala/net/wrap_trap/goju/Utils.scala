@@ -5,12 +5,12 @@ import java.nio.charset.Charset
 import java.util.zip.CRC32
 
 import akka.actor.ActorSystem
+import akka.event.{Logging, LogSource}
 import com.google.common.primitives.UnsignedBytes
-import com.typesafe.scalalogging.Logger
+import com.typesafe.config.ConfigFactory
 import net.wrap_trap.goju.element.Element
 import net.wrap_trap.goju.Helper._
 import org.joda.time.DateTime
-import org.slf4j.LoggerFactory
 
 /**
   * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
@@ -21,7 +21,8 @@ import org.slf4j.LoggerFactory
   * http://opensource.org/licenses/mit-license.php
   */
 object Utils {
-  val log = Logger(LoggerFactory.getLogger(Utils.getClass))
+  implicit val logSource: LogSource[AnyRef] = new GojuLogSource()
+  val log = Logging(Utils.getActorSystem, this)
 
   lazy val getActorSystem = {
     ActorSystem("goju")
@@ -137,7 +138,7 @@ object Utils {
   def decodeCRCData(logBinary: Array[Byte], broken: List[Array[Byte]], acc: List[Element]): List[Element] = {
     if(logBinary.size == 0) {
       if(broken.size > 0) {
-        log.warn("Found " + broken.size + " broken logs in decodeCRCData")
+        log.warning("Found " + broken.size + " broken logs in decodeCRCData")
       }
       return acc.reverse
     }
