@@ -222,7 +222,8 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
 
         val orderedMembers = node.members.reverse
         val blockData = Utils.encodeIndexNodes(orderedMembers, Compress(Constants.COMPRESS_PLAIN))
-        if(log.isDebugEnabled) {
+        val dumpBuffer = Settings.getSettings().getBoolean("goju.debug.dump_buffer", false)
+        if(dumpBuffer) {
           Utils.dumpBinary(blockData,"flushNode#blockData" )
         }
         val data = Utils.to4Bytes(blockData.size + 2) ++ Utils.to2Bytes(level) ++ blockData

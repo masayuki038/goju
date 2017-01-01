@@ -163,13 +163,16 @@ class RandomReader(val name: String) extends Reader {
   }
 
   private def readNode(posLen: PosLen): Option[ReaderNode] = {
+    val dumpBuffer = Settings.getSettings().getBoolean("goju.debug.dump_buffer", false)
     posLen match {
       case PosLen(pos, Some(len)) => {
         this.randomAccessFile.seek(pos + 4)
         val level = this.randomAccessFile.readShort
         val data = new Array[Byte](len - 4 - 2)
         if(this.randomAccessFile.read(data) != data.length) {
-          Utils.dumpBinary(data, "data")
+          if(dumpBuffer) {
+            Utils.dumpBinary(data, "data")
+          }
           throw new IllegalStateException("Failed to read data.")
         }
         val entryList = Utils.decodeIndexNodes(data, Compress(Constants.COMPRESS_PLAIN))
@@ -182,7 +185,7 @@ class RandomReader(val name: String) extends Reader {
           val level = this.randomAccessFile.readShort
           val buf = new Array[Byte](len - 2)
           this.randomAccessFile.read(buf)
-          if(log.isDebugEnabled) {
+          if(dumpBuffer) {
             Utils.dumpBinary(buf, "readNode#buf")
           }
           val entryList = Utils.decodeIndexNodes(buf, Compress(Constants.COMPRESS_PLAIN))
