@@ -16,7 +16,7 @@ import scala.concurrent.duration._
   * This software is released under the MIT License.
   * http://opensource.org/licenses/mit-license.php
   */
-class RangeFolder(filePath: String, workerPid: ActorRef, owner: ActorRef, range: KeyRange) extends Actor with PlainRpc {
+class RangeFolder(filePath: String, workerPid: ActorRef, owner: ActorRef, range: KeyRange) extends PlainRpc {
   val callTimeout = Settings.getSettings().getInt("goju.level.call_timeout", 300)
   implicit val timeout = Timeout(callTimeout seconds)
 

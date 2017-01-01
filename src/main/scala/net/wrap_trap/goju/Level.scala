@@ -351,9 +351,9 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
       this.stepMergeRef = None
       this.wip = Option(0)
     }
-    case (PlainRpcProtocol.reply, (StepOk, monitorRef: ActorRef))
-      if((this.stepNextRef.isDefined && monitorRef == this.stepNextRef.get) && this.stepMergeRef.isEmpty) => {
-      context.unwatch(monitorRef)
+    case (PlainRpcProtocol.reply, StepOk)
+      if((this.stepNextRef.isDefined && sender == this.stepNextRef.get) && this.stepMergeRef.isEmpty) => {
+      context.unwatch(sender)
       this.stepNextRef = None
     }
     case (PlainRpcProtocol.call, Close) => {

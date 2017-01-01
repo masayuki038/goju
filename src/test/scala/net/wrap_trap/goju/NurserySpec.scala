@@ -3,11 +3,10 @@ package net.wrap_trap.goju
 import java.io.File
 
 import akka.actor.{Actor, ActorSystem, ActorRef}
+import akka.event.{LogSource, Logging}
 import akka.testkit.{TestKit, TestActorRef}
-import com.typesafe.scalalogging.Logger
 import net.wrap_trap.goju.element.KeyValue
 import org.scalatest.{FlatSpecLike, BeforeAndAfter, Matchers}
-import org.slf4j.LoggerFactory
 
 /**
   * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
@@ -19,7 +18,8 @@ import org.slf4j.LoggerFactory
   */
 class NurserySpec extends TestKit(ActorSystem("test"))
  with FlatSpecLike with Matchers with BeforeAndAfter {
-  val log = Logger(LoggerFactory.getLogger(Nursery.getClass))
+  implicit val logSource: LogSource[AnyRef] = new GojuLogSource()
+  val log = Logging(Utils.getActorSystem, this)
 
   after {
     val deleted = new File("./" +  Nursery.DATA_FILENAME).delete

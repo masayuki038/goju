@@ -2,12 +2,10 @@ package net.wrap_trap.goju
 
 import java.io.File
 
-import akka.actor.{Actor, Props, ActorSystem}
-import akka.testkit.{TestActorRef, TestKit}
-import com.typesafe.scalalogging.Logger
-import org.slf4j.LoggerFactory
+import akka.actor.ActorSystem
+import akka.event.Logging
+import akka.testkit.TestKit
 import net.wrap_trap.goju.Constants.Value
-import net.wrap_trap.goju.element.{Element, KeyValue}
 import org.scalatest._
 
 /**
@@ -24,7 +22,8 @@ class GojuSpec extends TestKit(ActorSystem("goju"))
   with StopSystemAfterAll
   with BeforeAndAfter
   with PlainRpcClient {
-  val log = Logger(LoggerFactory.getLogger(this.getClass))
+  val log = Logging(Utils.getActorSystem, this)
+
   before {
     TestHelper.deleteDirectory(new File("test-data"))
   }
@@ -94,7 +93,7 @@ class GojuSpec extends TestKit(ActorSystem("goju"))
     goju.destroy()
   }
 
-  "Add 1024 entries" should "start to beginIncrementalMerge" in {
+  "To lookup 1024 entries" should "return all entries in levels" in {
     import org.scalatest.OptionValues._
 
     val goju = Goju.open("test-data")

@@ -41,6 +41,8 @@ class RandomReader(val name: String) extends Reader {
   val bloom = SerDes.deserializeBloom(bloomBuffer)
   val root = readNode(PosLen(rootPos))
 
+  log.debug("created, name: %s".format(this.name))
+
   def fold(func: (List[Element], Element) => List[Element], acc0: List[Element]): List[Element] = {
     val node = readNode(PosLen(Constants.FIRST_BLOCK_POS))
     foldInNode(func, node, acc0)
@@ -303,6 +305,7 @@ class RandomReader(val name: String) extends Reader {
   private def firstKey(node: ReaderNode): Key = {
     foldUntilStop((keyValue, _, _) => (Stop, (0, List(keyValue)), 0), (1, List.empty[Element]), 1, node.members) match {
       case (Stopped, (_, List(KeyValue(k: Key, _, _), _*)), _) => k
+      case (Stopped, (_, List(KeyRef(k: Key, _, _), _*)), _) => k
     }
   }
 
@@ -329,6 +332,7 @@ class RandomReader(val name: String) extends Reader {
 
   def close(): Unit = {
     randomAccessFile.close
+    log.debug("close, name: %s".format(this.name))
   }
 
   def delete(): Unit = {

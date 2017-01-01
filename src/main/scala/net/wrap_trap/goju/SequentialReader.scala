@@ -37,6 +37,8 @@ class SequentialReader(val name: String) extends Reader {
   var inputStream = buildInputStream(name)
   val file = new File(name)
 
+  log.debug("created, name: %s".format(this.name))
+
   def skip(n: Long): Unit = {
     inputStream.skip(n)
   }
@@ -44,6 +46,7 @@ class SequentialReader(val name: String) extends Reader {
   def close(): Unit = {
     try {
       inputStream.close
+      log.debug("close, name: %s".format(this.name))
     } catch {
       case ignore: Exception => {
         log.warning("Failed to close inputStream", ignore)
