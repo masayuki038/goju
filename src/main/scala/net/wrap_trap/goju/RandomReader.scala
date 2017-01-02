@@ -129,6 +129,7 @@ class RandomReader(val name: String) extends Reader {
                         acc0: (Int, List[Value]),
                         range: KeyRange,
                         limit: Int): (Int, List[Value]) = {
+    log.debug("rangeFoldHere, range: %s, limit: %d".format(range, limit))
     nextLeafNode() match {
       case None => acc0
       case Some(node) => {
@@ -322,6 +323,7 @@ class RandomReader(val name: String) extends Reader {
   private def foldUntilStop2(func: (Element, (Int, List[Value]), Int) => (FoldStatus, (Int, List[Value]), Int),
                              accWithStatus: (FoldStatus, (Int,  List[Value]), Int),
                              members: List[Element]): (FoldStatus, (Int, List[Value]), Int) = {
+    log.debug("foldUntilStop2, status: %s, acc.size: %d".format(accWithStatus._1, accWithStatus._2._2.size))
     accWithStatus match {
       case (Stop, result, limit) => (Stopped, result, limit)
       case (Continue, acc, limit) if members.length == 0 => (Ok, acc, limit)

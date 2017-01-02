@@ -1,6 +1,7 @@
 package net.wrap_trap.goju
 
 import akka.actor.{ActorRef, Actor}
+import akka.event.Logging
 import akka.util.Timeout
 import net.wrap_trap.goju.Constants.FOLD_CHUNK_SIZE
 import net.wrap_trap.goju.Constants.Value
@@ -19,6 +20,7 @@ import scala.concurrent.duration._
 class RangeFolder(filePath: String, workerPid: ActorRef, owner: ActorRef, range: KeyRange) extends PlainRpc {
   val callTimeout = Settings.getSettings().getInt("goju.level.call_timeout", 300)
   implicit val timeout = Timeout(callTimeout seconds)
+  val log = Logging(Utils.getActorSystem, this)
 
   override def preStart() = {
     val reader = RandomReader.open(filePath)
@@ -29,22 +31,28 @@ class RangeFolder(filePath: String, workerPid: ActorRef, owner: ActorRef, range:
   }
 
   private def doRangeFold2(reader: RandomReader, workderPid: ActorRef, selfOrRef: ActorRef, range: KeyRange): Unit = {
-    reader.rangeFold((keyValue, acc0) => {
+    log.debug("doRangeFold2, reader: %s, workerPid: %s, selfOrRef: %s, range: %s".format(reader, workerPid, selfOrRef, range))
+    val (_, valueList) = reader.rangeFold((keyValue, acc0) => {
         (keyValue, acc0) match {
           case (e: KeyValue, (0, acc)) => {
+            log.debug("doRangeFold2, f: 0")
             send(workerPid, selfOrRef, e.value :: acc)
             (FOLD_CHUNK_SIZE, List.empty[Value])
           }
           case (e: KeyValue, (f, acc)) => {
+            log.debug("doRangeFold2, f: %d".format(f))
             ((f - 1), e.value :: acc)
           }
         }
       },
       (FOLD_CHUNK_SIZE - 1, List.empty[Value]),
       range)
+    send(workerPid, selfOrRef, valueList)
+    workerPid ! (LevelDone, selfOrRef)
   }
 
   def send(workerPid: ActorRef, selfOrRef: ActorRef, reverseValues: List[Value]): Unit = {
+    log.debug("send, workerPid: %s, selfOrRef: %s, reverseValues.size: %d".format(workerPid, selfOrRef, reverseValues.size))
     call(workerPid, (LevelResults, selfOrRef, reverseValues.reverse))
   }
 

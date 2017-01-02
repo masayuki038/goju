@@ -41,19 +41,18 @@ class FoldRangeCoordinator(val topLevelRef: ActorRef,
         "foldWorker-" + System.currentTimeMillis)
       context.watch(foldWorkerRef)
 
-      val nurseryRef = System.nanoTime.hashid
-      foldWorkerRef ! (Prefix, List(nurseryRef))
+      foldWorkerRef ! (Prefix, List(self))
 
       range.limit < 10 match {
         case true => {
           // BlockingRange
           Level.blockingRange(this.topLevelRef, foldWorkerRef, range)
-          this.nursery.doLevelFold(foldWorkerRef, nurseryRef, range)
+          this.nursery.doLevelFold(foldWorkerRef, self, range)
         }
         case false => {
           // SnapshotRange
           Level.snapshotRange(this.topLevelRef, foldWorkerRef, range)
-          this.nursery.doLevelFold(foldWorkerRef, nurseryRef, range)
+          this.nursery.doLevelFold(foldWorkerRef, self, range)
         }
       }
     }

@@ -244,7 +244,7 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
     doIncMerge(ops.length, top)
   }
 
-  def doLevelFold(foldWorkerPid: ActorRef, ref: String, range: KeyRange): Unit = {
+  def doLevelFold(foldWorkerPid: ActorRef, ref: ActorRef, range: KeyRange): Unit = {
     log.debug("doLevelFold, foldWorkerPid: %s, ref: %s, range: %s".format(foldWorkerPid, ref, range))
     val (lastKey, count) = this.tree.foldLeft(None: Option[Key], range.limit){
       case ((lastKey, count), (k: Key, e: Element)) => {

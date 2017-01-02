@@ -96,8 +96,8 @@ object Level extends PlainRpcClient {
 
   def snapshotRange(ref: ActorRef, foldWorkerRef: ActorRef, keyRange: KeyRange): Unit = {
     log.debug("snapshotRange, ref: %s, foldWorkerRef: %s, keyRange: %s".format(ref, foldWorkerRef, keyRange))
-    val folders = call(ref, (InitSnapshotRangeFold, foldWorkerRef, keyRange, List.empty[String]))
-      .asInstanceOf[List[String]]
+    val folders = call(ref, (InitSnapshotRangeFold, None, foldWorkerRef, keyRange, List.empty[ActorRef]))
+      .asInstanceOf[List[ActorRef]]
     foldWorkerRef ! (Initialize, folders)
   }
 
@@ -391,7 +391,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
       sendReply(sender(), true)
       context.stop(self)
     }
-    case (PlainRpcProtocol.call, (InitSnapshotRangeFold, workerPid: ActorRef, range: KeyRange, refList: List[ActorRef]))
+    case (PlainRpcProtocol.call, (InitSnapshotRangeFold, gojuActor: Option[ActorRef], workerPid: ActorRef, range: KeyRange, refList: List[ActorRef]))
       if(this.folding.isEmpty) => {
       log.debug("receive InitSnapshotRangeFold, workerPid: %s, range: %s, list: %s".format(workerPid, range, refList))
       val (nextList, foldingPids) = (this.aReader, this.bReader, this.cReader) match {
@@ -426,9 +426,13 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
       }
 
       log.debug("InitSnapshotRangeFold, this.next: %s".format(this.next))
+      val from = gojuActor match {
+        case None => sender
+        case Some(g) => g
+      }
       this.next match {
-        case Some(n) => n ! (PlainRpcProtocol.call, (InitSnapshotRangeFold, workerPid, range, nextList))
-        case _ => sendReply(sender(), nextList.reverse)
+        case Some(n) => n ! (PlainRpcProtocol.call, (InitSnapshotRangeFold, Option(from), workerPid, range, nextList))
+        case _ => sendReply(from, nextList.reverse)
       }
       this.folding = foldingPids
     }
