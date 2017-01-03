@@ -5,7 +5,7 @@ import akka.event.Logging
 import akka.util.Timeout
 import net.wrap_trap.goju.Constants.FOLD_CHUNK_SIZE
 import net.wrap_trap.goju.Constants.Value
-import net.wrap_trap.goju.element.KeyValue
+import net.wrap_trap.goju.element.{Element, KeyValue}
 
 import scala.concurrent.duration._
 
@@ -36,24 +36,24 @@ class RangeFolder(filePath: String, workerPid: ActorRef, owner: ActorRef, range:
         (keyValue, acc0) match {
           case (e: KeyValue, (0, acc)) => {
             log.debug("doRangeFold2, f: 0")
-            send(workerPid, selfOrRef, e.value :: acc)
-            (FOLD_CHUNK_SIZE, List.empty[Value])
+            send(workerPid, selfOrRef, e :: acc)
+            (FOLD_CHUNK_SIZE, List.empty[Element])
           }
           case (e: KeyValue, (f, acc)) => {
             log.debug("doRangeFold2, f: %d".format(f))
-            ((f - 1), e.value :: acc)
+            ((f - 1), e :: acc)
           }
         }
       },
-      (FOLD_CHUNK_SIZE - 1, List.empty[Value]),
+      (FOLD_CHUNK_SIZE - 1, List.empty[Element]),
       range)
     send(workerPid, selfOrRef, valueList)
     workerPid ! (LevelDone, selfOrRef)
   }
 
-  def send(workerPid: ActorRef, selfOrRef: ActorRef, reverseValues: List[Value]): Unit = {
-    log.debug("send, workerPid: %s, selfOrRef: %s, reverseValues.size: %d".format(workerPid, selfOrRef, reverseValues.size))
-    call(workerPid, (LevelResults, selfOrRef, reverseValues.reverse))
+  def send(workerPid: ActorRef, selfOrRef: ActorRef, reverseKvs: List[Element]): Unit = {
+    log.debug("send, workerPid: %s, selfOrRef: %s, reverseKvs.size: %d".format(workerPid, selfOrRef, reverseKvs.size))
+    call(workerPid, (LevelResults, selfOrRef, reverseKvs.reverse))
   }
 
   def receive = {

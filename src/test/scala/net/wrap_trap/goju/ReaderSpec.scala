@@ -66,17 +66,17 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
     val reader = RandomReader.open(fileName)
     val (_, list) = reader.rangeFold((e, acc0) => {
         e match {
-          case KeyValue(_, v, _) => {
+          case e: KeyValue => {
             val (foldChunkSize, acc) = acc0
-            (foldChunkSize, v :: acc)
+            (foldChunkSize, e :: acc)
           }
         }
       },
       (100, List.empty[Element]),
       KeyRange(Key(Utils.toBytes("fon")), false, Option(Key(Utils.toBytes("hogf"))), false, Integer.MAX_VALUE))
     list.size should be(2)
-    list.find(p => p == "bar") should be(Some("bar"))
-    list.find(p => p == "hogehoge") should be(Some("hogehoge"))
+    list.find{case KeyValue(_, v, _) => v == "bar"} shouldBe defined
+    list.find{case KeyValue(_, v, _) => v == "hogehoge"} shouldBe defined
     reader.destroy
   }
 
@@ -84,17 +84,17 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
     val reader = RandomReader.open(fileName)
     val (_, list) = reader.rangeFold((e, acc0) => {
         e match {
-          case KeyValue(_, v, _) => {
+          case kv: KeyValue => {
             val (foldChunkSize, acc) = acc0
-            (foldChunkSize, v :: acc)
+            (foldChunkSize, kv :: acc)
           }
         }
       },
       (100, List.empty[Element]),
       KeyRange(Key(Utils.toBytes("foo")), true, Option(Key(Utils.toBytes("hoge"))), true, Integer.MAX_VALUE))
     list.size should be(2)
-    list.find(p => p == "bar") should be(Some("bar"))
-    list.find(p => p == "hogehoge") should be(Some("hogehoge"))
+    list.find{case KeyValue(_, v, _) => v == "bar"} shouldBe defined
+    list.find{case KeyValue(_, v, _) => v == "hogehoge"} shouldBe defined
     reader.destroy
   }
 
@@ -102,9 +102,9 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
     val reader = RandomReader.open(fileName)
     val (_, list) = reader.rangeFold((e, acc0) => {
         e match {
-          case KeyValue(_, v, _) => {
+          case kv: KeyValue => {
             val (foldChunkSize, acc) = acc0
-            (foldChunkSize, v :: acc)
+            (foldChunkSize, kv :: acc)
           }
         }
       },
@@ -118,16 +118,16 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
     val reader = RandomReader.open(fileName)
     val (_, list) = reader.rangeFold((e, acc0) => {
         e match {
-          case KeyValue(_, v, _) => {
+          case kv: KeyValue => {
             val (foldChunkSize, acc) = acc0
-            (foldChunkSize, v :: acc)
+            (foldChunkSize, kv :: acc)
           }
         }
       },
       (100, List.empty[Element]),
       KeyRange(Key(Utils.toBytes("foo")), true, Option(Key(Utils.toBytes("hoge"))), false, Integer.MAX_VALUE))
     list.size should be(1)
-    list.find(p => p == "bar") should be(Some("bar"))
+    list.find{case KeyValue(_, v, _) => v == "bar"} shouldBe defined
     reader.destroy
   }
 
@@ -135,17 +135,17 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
     val reader = RandomReader.open(fileName)
     val (_, list) = reader.rangeFold((e, acc0) => {
       e match {
-        case KeyValue(_, v, _) => {
+        case kv: KeyValue => {
           val (foldChunkSize, acc) = acc0
-          (foldChunkSize, v :: acc)
+          (foldChunkSize, kv :: acc)
         }
       }
     },
       (100, List.empty[Element]),
       KeyRange(Key(Utils.toBytes("foo")), true, None, false, Integer.MAX_VALUE))
     list.size should be(2)
-    list.find(p => p == "bar") should be(Some("bar"))
-    list.find(p => p == "hogehoge") should be(Some("hogehoge"))
+    list.find{case KeyValue(_, v, _) => v == "bar"} shouldBe defined
+    list.find{case KeyValue(_, v, _) => v == "hogehoge"} shouldBe defined
     reader.destroy
   }
 
@@ -153,16 +153,16 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
     val reader = RandomReader.open(fileName)
     val (_, list) = reader.rangeFold((e, acc0) => {
         e match {
-          case KeyValue(_, v, _) => {
+          case kv: KeyValue => {
             val (foldChunkSize, acc) = acc0
-            (foldChunkSize, v :: acc)
+            (foldChunkSize, kv :: acc)
           }
         }
       },
       (100, List.empty[Element]),
       KeyRange(Key(Utils.toBytes("foo")), false, Option(Key(Utils.toBytes("hoge"))), true, Integer.MAX_VALUE))
     list.size should be(1)
-    list.find(p => p == "hogehoge") should be(Some("hogehoge"))
+    list.find{case KeyValue(_, v, _) => v == "hogehoge"} shouldBe defined
     reader.destroy
   }
 
@@ -170,9 +170,9 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
     val reader = RandomReader.open(fileName)
     val (_, list) = reader.rangeFold((e, acc0) => {
       e match {
-        case KeyValue(_, v, _) => {
+        case kv: KeyValue => {
           val (foldChunkSize, acc) = acc0
-          (foldChunkSize, v :: acc)
+          (foldChunkSize, kv :: acc)
         }
       }
     },
