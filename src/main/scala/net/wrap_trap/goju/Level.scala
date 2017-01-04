@@ -601,7 +601,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
   private def startRangeFold(path: String, workerPid: ActorRef, range: KeyRange): ActorRef = {
     context.actorOf(
       Props(classOf[RangeFolder], path, workerPid, self, range),
-      "rangeFolder-level%d-%d".format(this.level, System.currentTimeMillis))
+      "rangeFolder-level%d-%s".format(this.level, path.replace('/', '-')))
   }
 
   private def destroyIfDefined(reader: Option[RandomReader]): Unit = {

@@ -57,7 +57,7 @@ class FoldRangeCoordinator(val topLevelRef: ActorRef,
       }
     }
     case (PlainRpcProtocol.call, (FoldResult, _, kv: KeyValue)) => {
-      log.debug("receive FoldResult")
+      log.debug("receive FoldResult, kv: %s".format(kv))
       val foldWorkerRef = sender
       sendReply(sender, Ok)
       this.acc = func(kv.key, kv.value, this.acc)

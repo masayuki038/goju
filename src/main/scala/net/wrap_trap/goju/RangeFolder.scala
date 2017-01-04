@@ -28,6 +28,7 @@ class RangeFolder(filePath: String, workerPid: ActorRef, owner: ActorRef, range:
     reader.close()
 
     owner ! (RangeFoldDone, self, filePath)
+    context.stop(self)
   }
 
   private def doRangeFold2(reader: RandomReader, workderPid: ActorRef, selfOrRef: ActorRef, range: KeyRange): Unit = {

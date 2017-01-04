@@ -174,8 +174,8 @@ class FoldWorker(val sendTo: ActorRef) extends Actor with PlainRpc with Stash {
         case (pid, Some(kv: KeyValue)) if kv.key < retKv.key => {
           (kv, List(pid))
         }
-        case (pid, Some(element: Element)) => {
-          (element, pid :: pidList)
+        case (pid, Some(kv: KeyValue)) if kv.key == retKv.key => {
+          (retKv, pid :: pidList)
         }
         case (_, _) => acc
       }
