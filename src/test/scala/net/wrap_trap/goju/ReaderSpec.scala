@@ -179,9 +179,7 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
       (100, List.empty[Element]),
       KeyRange(Key(Utils.toBytes("foo")), false, None, true, Integer.MAX_VALUE))
     list.size should be(1)
-    val kv1 = list.find(p => p == "hogehoge")
-    kv1 should be(defined)
-    kv1.get should be("hogehoge")
+    list.find({case KeyValue(_, v, _) => v == "hogehoge"}) shouldBe defined
     reader.destroy
   }
 
