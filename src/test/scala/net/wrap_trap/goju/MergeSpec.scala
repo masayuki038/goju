@@ -1,14 +1,17 @@
 package net.wrap_trap.goju
 
 import java.io.File
+import java.util.concurrent.TimeUnit
 
-import akka.actor.{Actor, Props, ActorSystem}
+import akka.actor.{Actor, ActorSystem, Props}
 import akka.testkit.{TestActorRef, TestKit}
 import net.wrap_trap.goju.Constants.Value
 import net.wrap_trap.goju.element.{Element, KeyValue}
 import org.hashids.Hashids
-import org.hashids.syntax._
+import akka.util.FiniteDuration
 import org.scalatest._
+
+import scala.concurrent.duration.FiniteDuration
 
 /**
   * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
@@ -48,7 +51,7 @@ class MergeSpec extends TestKit(ActorSystem("test"))
     writeAndClose(B, List((Key(Utils.toBytes("hoge")), "hogehoge")))
     val merger = TestActorRef(Props(classOf[Merge], testActor, A, B, OUT, 0, true))
     merger ! (Step, mergeTestActor, 2)
-    expectMsg((PlainRpcProtocol.cast, (MergeDone, 2, OUT)))
+    expectMsg(new FiniteDuration(10L, TimeUnit.SECONDS), (PlainRpcProtocol.cast, (MergeDone, 2, OUT)))
     val reader = RandomReader.open(OUT)
     reader.lookup(Utils.toBytes("foo")).get.value should be("bar")
     reader.lookup(Utils.toBytes("hoge")).get.value should be("hogehoge")
@@ -60,7 +63,7 @@ class MergeSpec extends TestKit(ActorSystem("test"))
     writeAndClose(B, List((Key(Utils.toBytes("hoge")), "hogehoge")))
     val merger = TestActorRef(Props(classOf[Merge], testActor, A, B, OUT, 0, true))
     merger ! (Step, mergeTestActor, 3)
-    expectMsg((PlainRpcProtocol.cast, (MergeDone, 3, OUT)))
+    expectMsg(new FiniteDuration(10L, TimeUnit.SECONDS), (PlainRpcProtocol.cast, (MergeDone, 3, OUT)))
     val reader = RandomReader.open(OUT)
     reader.lookup(Utils.toBytes("foo")).get.value should be("bar")
     reader.lookup(Utils.toBytes("foo2")).get.value should be("bar2")
@@ -73,7 +76,7 @@ class MergeSpec extends TestKit(ActorSystem("test"))
     writeAndClose(B, List((Key(Utils.toBytes("hoge")), "hogehoge"), (Key(Utils.toBytes("hoge2")), "hogehoge2")))
     val merger = TestActorRef(Props(classOf[Merge], testActor, A, B, OUT, 0, true))
     merger ! (Step, mergeTestActor, 3)
-    expectMsg((PlainRpcProtocol.cast, (MergeDone, 3, OUT)))
+    expectMsg(new FiniteDuration(10L, TimeUnit.SECONDS), (PlainRpcProtocol.cast, (MergeDone, 3, OUT)))
     val reader = RandomReader.open(OUT)
     reader.lookup(Utils.toBytes("foo")).get.value should be("bar")
     reader.lookup(Utils.toBytes("hoge")).get.value should be("hogehoge")
@@ -86,7 +89,7 @@ class MergeSpec extends TestKit(ActorSystem("test"))
     writeAndClose(B, List.empty[(Key, Value)])
     val merger = TestActorRef(Props(classOf[Merge], testActor, A, B, OUT, 0, true))
     merger ! (Step, mergeTestActor, 1)
-    expectMsg((PlainRpcProtocol.cast, (MergeDone, 1, OUT)))
+    expectMsg(new FiniteDuration(10L, TimeUnit.SECONDS), (PlainRpcProtocol.cast, (MergeDone, 1, OUT)))
     val reader = RandomReader.open(OUT)
     reader.lookup(Utils.toBytes("foo")).get.value should be("bar")
     reader.lookup(Utils.toBytes("hoge")) should be(None)
@@ -98,7 +101,7 @@ class MergeSpec extends TestKit(ActorSystem("test"))
     writeAndClose(B, List((Key(Utils.toBytes("hoge")), "hogehoge")))
     val merger = TestActorRef(Props(classOf[Merge], testActor, A, B, OUT, 0, true))
     merger ! (Step, mergeTestActor, 1)
-    expectMsg((PlainRpcProtocol.cast, (MergeDone, 1, OUT)))
+    expectMsg(new FiniteDuration(10L, TimeUnit.SECONDS), (PlainRpcProtocol.cast, (MergeDone, 1, OUT)))
     val reader = RandomReader.open(OUT)
     reader.lookup(Utils.toBytes("hoge")).get.value should be("hogehoge")
     reader.lookup(Utils.toBytes("foo")) should be(None)
