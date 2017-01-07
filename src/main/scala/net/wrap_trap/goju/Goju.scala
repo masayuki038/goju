@@ -39,6 +39,8 @@ object Goju extends PlainRpcClient {
 }
 
 class Goju(val dirPath: String) extends PlainRpcClient {
+  val log = Logging(Utils.getActorSystem, this)
+
   val dataFilePattern = ("^[^\\d]+-(\\d+).data$").r
   var nursery: Option[Nursery] = None
   var topLevelRef: Option[ActorRef] = None
