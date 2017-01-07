@@ -8,7 +8,6 @@ import akka.testkit.{TestActorRef, TestKit}
 import net.wrap_trap.goju.Constants.Value
 import net.wrap_trap.goju.element.{Element, KeyValue}
 import org.hashids.Hashids
-import akka.util.FiniteDuration
 import org.scalatest._
 
 import scala.concurrent.duration.FiniteDuration
