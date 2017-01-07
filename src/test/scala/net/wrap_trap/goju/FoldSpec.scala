@@ -38,10 +38,7 @@ class FoldSpec extends TestKit(ActorSystem("goju"))
       (count + 1, v :: list)
     }, (0, List.empty[Value]),
       KeyRange(Key(Utils.toBytes("key1")), true, Option(Key(Utils.toBytes("key3"))), false, Integer.MAX_VALUE))
-
     val set12 = ret.toSet
-    ret.foreach(p => println(p))
-
     (1 to 2).foreach(i => withClue("value" + i){set12("value" + i) should be(true)})
     (10 to 29).foreach(i => withClue("value" + i){set12("value" + i) should be(true)})
     (100 to 299).foreach(i => withClue("value" + i){set12("value" + i) should be(true)})

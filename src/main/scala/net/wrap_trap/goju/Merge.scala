@@ -33,6 +33,7 @@ class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPa
   var cKVs:Option[List[Element]] = None
 
   override def preStart(): Unit = {
+    log.info("preStart")
     merge()
   }
 
@@ -182,7 +183,7 @@ class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPa
   }
 
   private def terminate(): Int = {
-    log.debug("terminate()")
+    log.info("terminate()")
     val cnt = call(out, ('count))
     call(out, 'close)
     cnt.asInstanceOf[Int]
