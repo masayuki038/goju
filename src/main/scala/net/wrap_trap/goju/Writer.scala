@@ -1,15 +1,13 @@
 package net.wrap_trap.goju
 
 import scala.annotation.tailrec
+import java.io._
 
-import java.io.{ByteArrayOutputStream, FileOutputStream, BufferedOutputStream, DataOutputStream}
 import scala.concurrent.duration._
-
-import akka.actor.{ActorRef, Props, Actor}
+import akka.actor.{Actor, ActorRef, Props}
 import akka.util.Timeout
 import akka.event.Logging
-
-import net.wrap_trap.goju.element.{KeyValue, KeyRef, Element}
+import net.wrap_trap.goju.element.{Element, KeyRef, KeyValue}
 import net.wrap_trap.goju.Helper._
 import net.wrap_trap.goju.Constants._
 
@@ -24,8 +22,9 @@ import net.wrap_trap.goju.Constants._
   */
 object Writer extends PlainRpcClient {
 
-  def open(name: String): ActorRef = {
-    Utils.getActorSystem.actorOf(Props(new Writer(name)), "writer-" + System.currentTimeMillis)
+  def open(path: String): ActorRef = {
+    val fileName = new File(path).getName
+    Utils.getActorSystem.actorOf(Props(classOf[Writer], path, None), "writer-%s-%d".format(fileName, System.currentTimeMillis))
   }
 
   def add(actorRef: ActorRef, element: Element) = {
