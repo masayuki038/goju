@@ -21,8 +21,11 @@ object TestHelper {
       Option(file.listFiles).map(_.toList).getOrElse(Nil).foreach(deleteDirectory(_))
     }
     if(file.exists && !file.delete) {
-      file.listFiles.foreach(f => log.info("remain: " + f.getAbsolutePath))
-      throw new IllegalStateException("Failed to delete: " + file.getName)
+      val fileLists = file.listFiles
+      val dirName = file.getName
+      log.info("failed to delete %s, remain: %d".format(dirName, fileLists.length))
+      fileLists.foreach(f => log.info("remained file: " + f.getAbsolutePath))
+      throw new IllegalStateException("Failed to delete: " + dirName)
     }
   }
 }
