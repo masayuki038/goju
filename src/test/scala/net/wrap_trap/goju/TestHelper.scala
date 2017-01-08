@@ -28,4 +28,11 @@ object TestHelper {
       throw new IllegalStateException("Failed to delete: " + dirName)
     }
   }
+
+  def remakeDir(file: File): Unit = {
+    if(!file.exists) {
+      deleteDirectory(file)
+      file.mkdir()
+    }
+  }
 }

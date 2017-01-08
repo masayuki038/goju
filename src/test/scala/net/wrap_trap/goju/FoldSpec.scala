@@ -22,12 +22,9 @@ class FoldSpec extends FlatSpecLike
   with BeforeAndAfter
   with PlainRpcClient {
 
-  before {
-    TestHelper.deleteDirectory(new File("test-data"))
-  }
-
   "To fold 1024 entries" should "return all entries in levels" in {
-    val goju = Goju.open("test-data")
+    TestHelper.deleteDirectory(new File("test-fold1"))
+    val goju = Goju.open("test-fold1")
     (1 to 1024).foreach(i => goju.put(Utils.toBytes("key" + i), "value" + i))
     Thread.sleep(5000L)
 
@@ -82,17 +79,5 @@ class FoldSpec extends FlatSpecLike
     (90 to 99).foreach(i => withClue("value" + i){set9("value" + i) should be(true)})
     (900 to 999).foreach(i => withClue("value" + i){set9("value" + i) should be(true)})
     goju.destroy()
-  }
-
-  "To delete hard link" should "success" in {
-    new File("test-data").mkdir()
-    val target = new File("test-data\\A-8.data")
-    using(new FileWriter(target)) { fw => fw.write("test") }
-    val link = new File("test-data\\AF-8.data")
-    Files.createLink(link.toPath, target.toPath)
-    val a = new RandomAccessFile(target, "rw")
-    a.readFully(new Array[Byte](a.length.toInt))
-    //a.close()
-    link.delete() should be(true)
   }
 }

@@ -21,28 +21,27 @@ class NurserySpec extends TestKit(ActorSystem("test"))
   implicit val logSource: LogSource[AnyRef] = new GojuLogSource()
   val log = Logging(Utils.getActorSystem, this)
 
-  after {
-    val deleted = new File("./" +  Nursery.DATA_FILENAME).delete
-    log.info("Nursery's data has deleted: " + deleted)
-  }
-
   "newNursery" should "return new Nursery" in {
-    val nursery = Nursery.newNursery(".", 8, 8)
+    TestHelper.remakeDir(new File("test-nursery1"))
+    val nursery = Nursery.newNursery("test-nursery1", 8, 8)
     nursery.isInstanceOf[Nursery] should be(true)
     nursery.destroy()
   }
 
   "newNursery" should "create log file" in {
-    val nursery = Nursery.newNursery(".", 8, 8)
-    new File("./nursery.log").exists should be(true)
+    TestHelper.remakeDir(new File("test-nursery2"))
+    val nursery = Nursery.newNursery("test-nursery2", 8, 8)
+    new File("./test-nursery2/nursery.log").exists should be(true)
     nursery.destroy()
   }
 
-  def newNursery(testCode: (Nursery, ActorRef) => Any) {
-    testCode(Nursery.newNursery(".", 8, 8), TestActorRef[LevelSutbForRecover])
+  def newNursery(dir: String, testCode: (Nursery, ActorRef) => Any) {
+    TestHelper.remakeDir(new File(dir))
+    testCode(Nursery.newNursery(dir, 8, 8), TestActorRef[LevelSutbForRecover])
   }
 
-  def twoInNursery(testCode: (Nursery, ActorRef) => Any) {
+  def twoInNursery(dir: String, testCode: (Nursery, ActorRef) => Any) {
+    TestHelper.remakeDir(new File(dir))
     val nursery = Nursery.newNursery(".", 8, 8)
     val top = TestActorRef[LevelSutbForRecover]
     Nursery.add(Utils.toBytes("foo"), "bar", 5, nursery, top)
@@ -50,7 +49,7 @@ class NurserySpec extends TestKit(ActorSystem("test"))
     testCode(nursery, top)
   }
 
-  "Nursery.add" should "be added KeyValue" in newNursery { (nursery, top) =>
+  "Nursery.add" should "be added KeyValue" in newNursery("test-nursery3", { (nursery, top) =>
     val rawKey1 = Utils.toBytes("foo")
     Nursery.add(rawKey1, "bar", 600, nursery, top)
     val key1 = Key(rawKey1)
@@ -67,19 +66,9 @@ class NurserySpec extends TestKit(ActorSystem("test"))
     nursery.tree.get(key2).isInstanceOf[KeyValue] should be(true)
     nursery.tree.get(key2).asInstanceOf[KeyValue].value should be("hogehoge")
     nursery.destroy()
-  }
+  })
 
-  // TODO Add Nurseary.add should KeyValue with expire time when implement Nursery.get
-//  "Nursery.add" should "be added KeyValue with expire time" in newNursery { (nursery, top) =>
-//    val rawKey1 = Utils.toBytes("foo")
-//    Nursery.add(rawKey1, "bar", 5, nursery, top)
-//    val key1 = Key(rawKey1)
-//    Thread.sleep(5000L)
-//    nursery.tree.size should be(1)
-//    nursery.tree.containsKey(key1) should be(false)
-//  }
-
-  "Nursery.recover" should "be recoverd two elements" in twoInNursery { (nursery, top) =>
+  "Nursery.recover" should "be recoverd two elements" in twoInNursery("test-nursery4", { (nursery, top) =>
     nursery.logger.close()
     val newNursery = Nursery.recover(".", top, 1, 2)
 
@@ -92,9 +81,9 @@ class NurserySpec extends TestKit(ActorSystem("test"))
     kv2.get.value should be("hogehoge")
     reader.destroy()
     newNursery.destroy()
-  }
+  })
 
-  "Nursery.recover" should "be recoverd two elements with expire time" in twoInNursery { (nursery, top) =>
+  "Nursery.recover" should "be recoverd two elements with expire time" in twoInNursery("test-nursery5", { (nursery, top) =>
     nursery.logger.close()
     val newNursery = Nursery.recover(".", top, 1, 2)
     val reader = RandomReader.open(newNursery.dirPath + java.io.File.separator + Nursery.DATA_FILENAME)
@@ -111,7 +100,7 @@ class NurserySpec extends TestKit(ActorSystem("test"))
 
     reader.destroy()
     newNursery.destroy()
-  }
+  })
 }
 
 class LevelSutbForRecover extends Actor with PlainRpc {
