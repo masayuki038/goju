@@ -17,10 +17,8 @@ import org.scalatest._
   * This software is released under the MIT License.
   * http://opensource.org/licenses/mit-license.php
   */
-class FoldSpec extends TestKit(ActorSystem("goju"))
-  with FlatSpecLike
+class FoldSpec extends FlatSpecLike
   with ShouldMatchers
-  with StopSystemAfterAll
   with BeforeAndAfter
   with PlainRpcClient {
 

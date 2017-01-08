@@ -47,6 +47,7 @@ class Goju(val dirPath: String) extends PlainRpcClient {
   var maxLevel: Option[Int] = None
 
   def init(): Unit = {
+    log.error("------------------------------ test -----------------------------")
     Utils.ensureExpiry
     val dir = new File(this.dirPath)
     val (topRef, newNursery, maxLevel) = dir.isDirectory match {
