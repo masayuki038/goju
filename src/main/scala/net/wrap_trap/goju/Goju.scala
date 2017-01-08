@@ -92,7 +92,14 @@ class Goju(val dirPath: String) extends PlainRpcClient {
       (Option(level), mergeWork0 + Level.unmergedCount(level))
     }}
     val workPerIter = (maxLevel - minLevel + 1) * Utils.btreeSize(minLevel)
-    val topLevelRef = ref.get
+    val topLevelRef = ref match {
+      case Some(r) => r
+      case _ => {
+        log.error("Failed to get topLevelRef. data files are: ")
+        dir.listFiles.foreach(f => log.error(f.getAbsolutePath))
+        throw new IllegalStateException("Failed to get topLevelRef")
+      }
+    }
     doMerge(topLevelRef, workPerIter, maxMerge, minLevel)
     (topLevelRef, minLevel, maxLevel)
   }
