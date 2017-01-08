@@ -19,7 +19,7 @@ class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPa
 
   val aReader = SequentialReader.open(aPath)
   val bReader = SequentialReader.open(bPath)
-  val out = Writer.open(outPath)
+  val out = Writer.open(outPath, context)
   var n = 0
   var aKVs: Option[List[Element]] = None
   var bKVs: Option[List[Element]] = None

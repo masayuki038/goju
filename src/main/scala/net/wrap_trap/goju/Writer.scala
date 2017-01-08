@@ -4,7 +4,7 @@ import scala.annotation.tailrec
 import java.io._
 
 import scala.concurrent.duration._
-import akka.actor.{Actor, ActorRef, Props}
+import akka.actor.{Actor, ActorContext, ActorRef, Props}
 import akka.util.Timeout
 import akka.event.Logging
 import net.wrap_trap.goju.element.{Element, KeyRef, KeyValue}
@@ -25,6 +25,11 @@ object Writer extends PlainRpcClient {
   def open(path: String): ActorRef = {
     val fileName = new File(path).getName
     Utils.getActorSystem.actorOf(Props(classOf[Writer], path, None), "writer-%s-%d".format(fileName, System.currentTimeMillis))
+  }
+
+  def open(path: String, context: ActorContext): ActorRef = {
+    val fileName = new File(path).getName
+    context.actorOf(Props(classOf[Writer], path, None), "writer-%s-%d".format(fileName, System.currentTimeMillis))
   }
 
   def add(actorRef: ActorRef, element: Element) = {
