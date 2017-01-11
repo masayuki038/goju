@@ -163,6 +163,7 @@ class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPa
         }
         case None => {
           log.debug("scanOnly, c.isEmpty, reader.nextNode() is None")
+          fromPid.foreach { case (pid, ref) => pid ! (ref, StepDone) }
           reader.close()
           val cnt = terminate()
           cast(owner, (MergeDone, cnt, outPath))
