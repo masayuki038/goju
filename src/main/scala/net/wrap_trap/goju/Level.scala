@@ -31,7 +31,7 @@ object Level extends PlainRpcClient {
     Utils.ensureExpiry
     Utils.getActorSystem.actorOf(
       Props(classOf[Level], dirPath, level, owner),
-      "level%d-%d".format(level, System.currentTimeMillis))
+      "level%d-%d-%d".format(level, owner.hashCode, System.currentTimeMillis))
   }
 
   def level(ref: ActorRef): Int = {
