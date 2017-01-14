@@ -190,7 +190,3 @@ class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPa
     cnt.asInstanceOf[Int]
   }
 }
-
-sealed abstract class MergeOp
-case object Step extends MergeOp
-case object MergeDone extends MergeOp

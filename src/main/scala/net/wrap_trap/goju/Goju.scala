@@ -194,14 +194,3 @@ class Goju(val dirPath: String) extends PlainRpcClient {
     }
   }
 }
-
-sealed abstract class GojuOp
-case object Get extends GojuOp
-case object Transact extends GojuOp
-
-sealed abstract class RangeOp
-case object Start extends RangeOp
-
-sealed abstract class RangeType
-case object BlockingRange extends RangeType
-case object SnapshotRange extends RangeType

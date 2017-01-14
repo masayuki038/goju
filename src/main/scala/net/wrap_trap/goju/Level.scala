@@ -718,35 +718,3 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
     }
   }
 }
-
-sealed abstract class LevelOp
-case object Query extends LevelOp
-case object Lookup extends LevelOp
-case object Inject extends LevelOp
-case object BeginIncrementalMerge extends LevelOp
-case object AwaitIncrementalMerge extends LevelOp
-case object UnmergedCount extends LevelOp
-case object SetMaxLevel extends LevelOp
-case object Close extends LevelOp
-case object Destroy extends LevelOp
-case object InitSnapshotRangeFold extends LevelOp
-case object InitBlockingRangeFold extends LevelOp
-case object LevelResult extends LevelOp
-case object LevelResults extends LevelOp
-case object RangeFoldDone extends LevelOp
-case object LevelLimit extends LevelOp
-case object LevelDone extends LevelOp
-case object BottomLevel extends LevelOp
-
-case object StepLevel extends LevelOp
-case object StepDone extends LevelOp
-case object StepOk extends LevelOp
-
-sealed abstract class LookupResponse
-case object NotFound extends LookupResponse
-case object Found extends LookupResponse
-case object Delegate extends LookupResponse
-
-sealed abstract class FoldWorkerOp
-case object Initialize extends FoldWorkerOp
-case object Prefix extends FoldWorkerOp

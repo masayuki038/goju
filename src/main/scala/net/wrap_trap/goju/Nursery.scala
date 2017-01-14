@@ -275,7 +275,3 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
     }
   }
 }
-
-sealed abstract class TransactionOp
-case object Delete extends TransactionOp
-case object Put extends TransactionOp
