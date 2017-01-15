@@ -2,10 +2,9 @@ package net.wrap_trap.goju
 
 import akka.util.Timeout
 import akka.event.Logging
-import net.wrap_trap.goju.Constants.Value
-import net.wrap_trap.goju.element.{Element, KeyValue}
+import net.wrap_trap.goju.element.KeyValue
 
-import scala.collection.mutable.Stack
+import scala.collection.mutable.Queue
 import akka.actor.{Terminated, Actor, ActorRef, Stash}
 
 import scala.concurrent.duration._
@@ -23,7 +22,7 @@ class FoldWorker(val sendTo: ActorRef) extends Actor with PlainRpc with Stash {
 
   var prefixFolders = List.empty[ActorRef]
   var folding = List.empty[(ActorRef, Option[KeyValue])]
-  var refQueues = List.empty[(ActorRef, Stack[Any])]
+  var refQueues = List.empty[(ActorRef, Queue[Any])]
   var pids = List.empty[ActorRef]
   var savePids = List.empty[ActorRef]
 
@@ -38,7 +37,7 @@ class FoldWorker(val sendTo: ActorRef) extends Actor with PlainRpc with Stash {
     case (Initialize, refList: List[ActorRef]) => {
       log.debug("receive Initialize, refList: %s".format(refList))
       this.savePids = this.prefixFolders ::: refList
-      this.refQueues = for (pid <- this.savePids) yield (pid, new Stack[Any])
+      this.refQueues = for (pid <- this.savePids) yield (pid, new Queue[Any])
       this.folding = for (pid <- this.savePids) yield (pid, None: Option[KeyValue])
       fill()
     }
@@ -124,15 +123,15 @@ class FoldWorker(val sendTo: ActorRef) extends Actor with PlainRpc with Stash {
               case false => {
                 log.debug("fill, queue is not empty")
                 // Not calling keyreplace since queue is mutable.
-                queue.pop() match {
+                queue.dequeue() match {
                   case Done => {
-                    log.debug("fill, queue.pop(): Done")
+                    log.debug("fill, queue.dequeue(): Done")
                     this.folding = this.folding.filter(p => p._1 != pid)
                     this.savePids = this.savePids.tail
                     fill()
                   }
                   case kv: KeyValue => {
-                    log.debug("fill, queue.pop(): KeyValue")
+                    log.debug("fill, queue.dequeue(): KeyValue")
                     this.folding  = this.folding.map(p => {
                       val (initialPid, _) = p
                       if(initialPid == pid) {
@@ -203,13 +202,13 @@ class FoldWorker(val sendTo: ActorRef) extends Actor with PlainRpc with Stash {
   private def enter(pid: ActorRef, message: Any): Unit = {
     log.debug("enter, pid: %s, message: %s".format(pid, message))
     this.refQueues.find{ case (p, _) => p == pid}
-      .foreach{ case (_, queue) => queue.push(message)}
+      .foreach{ case (_, queue) => queue.enqueue(message)}
   }
 
   private def enterMany(pid: ActorRef, messages: List[Any]) = {
     log.debug("enterMany, pid: %s".format(pid))
     this.refQueues.find{ case (p, _) => p == pid}
-      .foreach{ case (_, queue) => for (message <- messages) { queue.push(message) }}
+      .foreach{ case (_, queue) => for (message <- messages) { queue.enqueue(message) }}
   }
 }
 
