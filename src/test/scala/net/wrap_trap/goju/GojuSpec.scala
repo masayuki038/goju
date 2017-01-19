@@ -63,9 +63,33 @@ class GojuSpec extends TestKit(ActorSystem("goju"))
     goju.destroy()
   }
 
-  "Range scan" should "return values in the range" in {
+  "Open, put, delete, get" should "return None" in {
+    import org.scalatest.OptionValues._
+
     TestHelper.deleteDirectory(new File("test-goju4"))
     val goju = Goju.open("test-goju4")
+    val key1 = Utils.toBytes("foo")
+    val value1 = Utils.to8Bytes(77)
+    goju.put(key1, value1)
+
+    val key2 = Utils.toBytes("bar")
+    val value2 = Utils.to8Bytes(89)
+    goju.put(key2, value2)
+
+    goju.delete(key1)
+    val optionValue1 = goju.get(key1)
+    optionValue1 shouldNot be(defined)
+
+    val optionValue2 = goju.get(key2)
+    optionValue2 should be(defined)
+    optionValue2.value should be(value2)
+
+    goju.destroy()
+  }
+
+  "Range scan" should "return values in the range" in {
+    TestHelper.deleteDirectory(new File("test-goju5"))
+    val goju = Goju.open("test-goju5")
     val key1 = Utils.toBytes("range-test1")
     val value1 = Utils.toBytes("foo")
     val key2 = Utils.toBytes("range-test2")
@@ -95,8 +119,8 @@ class GojuSpec extends TestKit(ActorSystem("goju"))
   "To lookup 1024 entries" should "return all entries in levels" in {
     import org.scalatest.OptionValues._
 
-    TestHelper.deleteDirectory(new File("test-goju5"))
-    val goju = Goju.open("test-goju5")
+    TestHelper.deleteDirectory(new File("test-goju6"))
+    val goju = Goju.open("test-goju6")
     (1 to 1024).foreach(i => goju.put(Utils.toBytes("key" + i), Utils.toBytes("value" + i)))
     Thread.sleep(5000L)
     (1 to 1024).foreach(i => {
@@ -105,4 +129,6 @@ class GojuSpec extends TestKit(ActorSystem("goju"))
     })
     goju.destroy()
   }
+
+
 }

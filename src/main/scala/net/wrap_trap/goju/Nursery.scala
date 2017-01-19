@@ -186,11 +186,7 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
     val element = this.tree.get(Key(key))
     element match {
       case kv: KeyValue => {
-        if(kv.expired()) {
-          None
-        } else {
-          Option(kv)
-        }
+        Option(kv)
       }
       case _ => {
         None
