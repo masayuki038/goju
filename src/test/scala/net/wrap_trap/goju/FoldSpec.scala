@@ -89,4 +89,30 @@ class FoldSpec extends FlatSpecLike
     Thread.sleep(10000L)
     goju.destroy()
   }
+
+  "To fold entries" should "return all entries without tombstoned in levels" in {
+    TestHelper.deleteDirectory(new File("test-fold1"))
+    val goju = Goju.open("test-fold1")
+    (1 to 1024).foreach(i => goju.put(Utils.toBytes("key" + i), "value" + i))
+    Thread.sleep(5000L)
+    goju.delete(Utils.toBytes("key1"))
+    goju.delete(Utils.toBytes("key150"))
+    goju.delete(Utils.toBytes("key1024"))
+
+    val ret = goju.foldRange((k, v, acc) => {
+      val (count, list) = acc
+      (count + 1, v :: list)
+    }, (0, List.empty[Value]),
+      KeyRange(Key(Utils.toBytes("key1")), true, Option(Key(Utils.toBytes("key2"))), false, Integer.MAX_VALUE))
+    val set12 = ret.toSet
+    log.debug("content set12: " + ret.mkString(", "))
+    goju.get(Utils.toBytes("key1")) shouldNot be(defined)
+    goju.get(Utils.toBytes("key150")) shouldNot be(defined)
+    goju.get(Utils.toBytes("key1024")) shouldNot be(defined)
+
+    (10 to 19).foreach(i => withClue("value" + i){set12("value" + i) should be(true)})
+    (100 to 149).foreach(i => withClue("value" + i){set12("value" + i) should be(true)})
+    (151 to 199).foreach(i => withClue("value" + i){set12("value" + i) should be(true)})
+    (1000 to 1023).foreach(i => withClue("value" + i){set12("value" + i) should be(true)})
+  }
 }
