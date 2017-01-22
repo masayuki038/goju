@@ -115,4 +115,30 @@ class FoldSpec extends FlatSpecLike
     (151 to 199).foreach(i => withClue("value" + i){set12("value" + i) should be(true)})
     (1000 to 1023).foreach(i => withClue("value" + i){set12("value" + i) should be(true)})
   }
+
+  "foldRange" should "return limited entries" in {
+    TestHelper.deleteDirectory(new File("test-fold1"))
+    val goju = Goju.open("test-fold1")
+    (1 to 1024).foreach(i => goju.put(Utils.toBytes("key" + i), "value" + i))
+    Thread.sleep(5000L)
+
+    val ret = goju.foldRange((k, v, acc) => {
+      val (count, list) = acc
+      (count + 1, v :: list)
+    }, (0, List.empty[Value]),
+      KeyRange(Key(Utils.toBytes("key1")), true, Option(Key(Utils.toBytes("key2"))), false, 9))
+    val set12 = ret.toSet
+    log.debug("content set12: " + ret.mkString(", "))
+    set12("value1") should be(true)
+    set12("value10") should be(true)
+    set12("value100") should be(true)
+    set12("value1000") should be(true)
+    set12("value1001") should be(true)
+    set12("value1002") should be(true)
+    set12("value1003") should be(true)
+    set12("value1004") should be(true)
+    set12("value1005") should be(true)
+    set12("value1006") should be(false)
+    set12.size should be(9)
+  }
 }

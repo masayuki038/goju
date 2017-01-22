@@ -104,7 +104,7 @@ object Level extends PlainRpcClient {
   def blockingRange(ref: ActorRef, foldWorkerRef: ActorRef, keyRange: KeyRange): Unit = {
     log.debug("blockingRange, ref: %s, foldWorkerRef: %s, keyRange.fromKey: %s, keyRange.toKey: %s"
       .format(ref, foldWorkerRef, keyRange.fromKey, keyRange.toKey))
-    val folders = call(ref, (InitBlockingRangeFold, foldWorkerRef, keyRange, List.empty[String]))
+    val folders = call(ref, (InitBlockingRangeFold, None, foldWorkerRef, keyRange, List.empty[String]))
       .asInstanceOf[List[String]]
     foldWorkerRef ! Initialize(folders)
   }
@@ -440,8 +440,8 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
       Utils.deleteFile(filePath)
       this.folding = this.folding.filter(p => p != pid)
     }
-    case (PlainRpcProtocol.call, (InitBlockingRangeFold, workerPid: ActorRef, range: KeyRange, refList: List[String])) => {
-      log.debug("receive InitBlockingRangeFold, workerPid: %s, range: %d, list: %s".format(workerPid, range, refList))
+    case (PlainRpcProtocol.call, (InitBlockingRangeFold, gojuActor: Option[ActorRef], workerPid: ActorRef, range: KeyRange, refList: List[String])) => {
+      log.debug("receive InitBlockingRangeFold, workerPid: %s, range: %s, list: %s".format(workerPid, range, refList))
       val newRefList = (this.aReader, this.bReader, this.cReader) match {
         case (None, None, None) => refList
         case (Some(a), None, None) => {
@@ -471,9 +471,13 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
           List(aRef, bRef, cRef) ::: refList
         }
       }
+      val from = gojuActor match {
+        case None => sender
+        case Some(g) => g
+      }
       this.next match {
-        case Some(n) => n ! (PlainRpcProtocol.call, (InitBlockingRangeFold, workerPid, range, newRefList))
-        case _ => sendReply(sender(), (Ok, newRefList.reverse))
+        case Some(n) => n ! (PlainRpcProtocol.call, (InitBlockingRangeFold, Option(from), workerPid, range, newRefList))
+        case _ => sendReply(from, newRefList.reverse)
       }
     }
     case (PlainRpcProtocol.cast, (MergeDone, 0, outFileName: String)) => {
