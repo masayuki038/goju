@@ -96,8 +96,8 @@ object Level extends PlainRpcClient {
 
   def snapshotRange(ref: ActorRef, foldWorkerRef: ActorRef, keyRange: KeyRange): Unit = {
     log.debug("snapshotRange, ref: %s, foldWorkerRef: %s, keyRange: %s".format(ref, foldWorkerRef, keyRange))
-    val folders = call(ref, (InitSnapshotRangeFold, None, foldWorkerRef, keyRange, List.empty[ActorRef]))
-      .asInstanceOf[List[ActorRef]]
+    val folders = call(ref, (InitSnapshotRangeFold, None, foldWorkerRef, keyRange, List.empty[String]))
+      .asInstanceOf[List[String]]
     foldWorkerRef ! Initialize(folders)
   }
 
@@ -105,7 +105,7 @@ object Level extends PlainRpcClient {
     log.debug("blockingRange, ref: %s, foldWorkerRef: %s, keyRange.fromKey: %s, keyRange.toKey: %s"
       .format(ref, foldWorkerRef, keyRange.fromKey, keyRange.toKey))
     val folders = call(ref, (InitBlockingRangeFold, foldWorkerRef, keyRange, List.empty[String]))
-      .asInstanceOf[List[ActorRef]]
+      .asInstanceOf[List[String]]
     foldWorkerRef ! Initialize(folders)
   }
 }
@@ -391,7 +391,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
       sendReply(sender(), true)
       context.stop(self)
     }
-    case (PlainRpcProtocol.call, (InitSnapshotRangeFold, gojuActor: Option[ActorRef], workerPid: ActorRef, range: KeyRange, refList: List[ActorRef]))
+    case (PlainRpcProtocol.call, (InitSnapshotRangeFold, gojuActor: Option[ActorRef], workerPid: ActorRef, range: KeyRange, refList: List[String]))
       if(this.folding.isEmpty) => {
       log.debug("receive InitSnapshotRangeFold, workerPid: %s, range: %s, list: %s".format(workerPid, range, refList))
       val (nextList, foldingPids) = (this.aReader, this.bReader, this.cReader) match {
@@ -403,7 +403,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
           log.debug("InitSnapshotRangeFold, case (_, None None)")
           Files.createLink(Paths.get(filename("AF")), Paths.get(filename("A")))
           val pid0 = startRangeFold(filename("AF"), workerPid, range)
-          (pid0 :: refList, List(pid0))
+          (pid0.toString :: refList, List(pid0))
         }
         case (_, _, None) => {
           log.debug("InitSnapshotRangeFold, case (_, _, None)")
@@ -411,7 +411,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
           val pidA = startRangeFold(filename("AF"), workerPid, range)
           Files.createLink(Paths.get(filename("BF")), Paths.get(filename("B")))
           val pidB = startRangeFold(filename("BF"), workerPid, range)
-          (List(pidA, pidB) ::: refList, List(pidB, pidA))
+          (List(pidA.toString, pidB.toString) ::: refList, List(pidB, pidA))
         }
         case (_, _, _) => {
           log.debug("InitSnapshotRangeFold, case (_, _, _)")
@@ -421,7 +421,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
           val pidB = startRangeFold(filename("BF"), workerPid, range)
           Files.createLink(Paths.get(filename("CF")), Paths.get(filename("C")))
           val pidC = startRangeFold(filename("CF"), workerPid, range)
-          (List(pidA, pidB, pidC) ::: refList, List(pidC, pidB, pidA))
+          (List(pidA.toString, pidB.toString, pidC.toString) ::: refList, List(pidC, pidB, pidA))
         }
       }
 
@@ -456,7 +456,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
           val bRef = System.nanoTime.hashid
           doRangeFold(b, workerPid, bRef, range)
 
-          List(aRef, bRef) :: refList
+          List(aRef, bRef) ::: refList
         }
         case (Some(a), Some(b), Some(c)) => {
           val aRef = System.nanoTime.hashid
@@ -468,7 +468,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
           val cRef = System.nanoTime.hashid
           doRangeFold(b, workerPid, cRef, range)
 
-          List(aRef, bRef, cRef) :: refList
+          List(aRef, bRef, cRef) ::: refList
         }
       }
       this.next match {

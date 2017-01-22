@@ -89,8 +89,8 @@ case object Found extends LookupResponse
 case object Delegate extends LookupResponse
 
 sealed abstract class FoldWorkerOp
-case class Initialize(val refList: List[ActorRef]) extends FoldWorkerOp
-case class Prefix(val refList: List[ActorRef]) extends FoldWorkerOp
+case class Initialize(val refList: List[String]) extends FoldWorkerOp
+case class Prefix(val refList: List[String]) extends FoldWorkerOp
 
 case object Done
 case object Limit
