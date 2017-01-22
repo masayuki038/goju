@@ -2,6 +2,8 @@ package net.wrap_trap.goju
 
 import java.nio.charset.Charset
 
+import akka.actor.ActorRef
+
 /**
   * goju-to: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
 
@@ -87,8 +89,8 @@ case object Found extends LookupResponse
 case object Delegate extends LookupResponse
 
 sealed abstract class FoldWorkerOp
-case object Initialize extends FoldWorkerOp
-case object Prefix extends FoldWorkerOp
+case class Initialize(val refList: List[ActorRef]) extends FoldWorkerOp
+case class Prefix(val refList: List[ActorRef]) extends FoldWorkerOp
 
 case object Done
 case object Limit

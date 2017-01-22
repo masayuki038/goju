@@ -41,7 +41,7 @@ class FoldRangeCoordinator(val topLevelRef: ActorRef,
         "foldWorker-" + System.currentTimeMillis)
       context.watch(foldWorkerRef)
 
-      foldWorkerRef ! (Prefix, List(self))
+      foldWorkerRef ! Prefix(List(self))
 
       range.limit < 10 match {
         case true => {

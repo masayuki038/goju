@@ -98,15 +98,15 @@ object Level extends PlainRpcClient {
     log.debug("snapshotRange, ref: %s, foldWorkerRef: %s, keyRange: %s".format(ref, foldWorkerRef, keyRange))
     val folders = call(ref, (InitSnapshotRangeFold, None, foldWorkerRef, keyRange, List.empty[ActorRef]))
       .asInstanceOf[List[ActorRef]]
-    foldWorkerRef ! (Initialize, folders)
+    foldWorkerRef ! Initialize(folders)
   }
 
   def blockingRange(ref: ActorRef, foldWorkerRef: ActorRef, keyRange: KeyRange): Unit = {
     log.debug("blockingRange, ref: %s, foldWorkerRef: %s, keyRange.fromKey: %s, keyRange.toKey: %s"
       .format(ref, foldWorkerRef, keyRange.fromKey, keyRange.toKey))
     val folders = call(ref, (InitBlockingRangeFold, foldWorkerRef, keyRange, List.empty[String]))
-      .asInstanceOf[List[String]]
-    foldWorkerRef ! (Initialize, folders)
+      .asInstanceOf[List[ActorRef]]
+    foldWorkerRef ! Initialize(folders)
   }
 }
 

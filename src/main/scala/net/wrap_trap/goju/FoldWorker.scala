@@ -30,13 +30,13 @@ class FoldWorker(val sendTo: ActorRef) extends Actor with PlainRpc with Stash {
   implicit val timeout = Timeout(callTimeout seconds)
 
   def receive = {
-    case (Prefix, refList: List[ActorRef]) => {
-      log.debug("receive Prefix, refList: %s".format(refList))
-      this.prefixFolders = refList
+    case prefix: Prefix => {
+      log.debug("receive Prefix, refList: %s".format(prefix.refList))
+      this.prefixFolders = prefix.refList
     }
-    case (Initialize, refList: List[ActorRef]) => {
-      log.debug("receive Initialize, refList: %s".format(refList))
-      this.savePids = this.prefixFolders ::: refList
+    case initialize: Initialize => {
+      log.debug("receive Initialize, refList: %s".format(initialize.refList))
+      this.savePids = this.prefixFolders ::: initialize.refList
       this.refQueues = for (pid <- this.savePids) yield (pid, new Queue[Any])
       this.folding = for (pid <- this.savePids) yield (pid, None: Option[KeyValue])
       fill()
