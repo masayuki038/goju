@@ -25,7 +25,7 @@ class FoldSpec extends FlatSpecLike
 
   val log = Logging(Utils.getActorSystem, this)
 
-  "To fold 1024 entries" should "return all entries in levels" in {
+  "foldRange" should "return all entries in each level" in {
     TestHelper.deleteDirectory(new File("test-fold1"))
     val goju = Goju.open("test-fold1")
     (1 to 1024).foreach(i => goju.put(Utils.toBytes("key" + i), "value" + i))
@@ -90,7 +90,7 @@ class FoldSpec extends FlatSpecLike
     goju.destroy()
   }
 
-  "To fold entries" should "return all entries without tombstoned in levels" in {
+  "foldRange" should "return all entries without tombstoned in each level" in {
     TestHelper.deleteDirectory(new File("test-fold1"))
     val goju = Goju.open("test-fold1")
     (1 to 1024).foreach(i => goju.put(Utils.toBytes("key" + i), "value" + i))
