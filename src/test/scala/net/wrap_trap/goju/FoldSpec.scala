@@ -106,9 +106,9 @@ class FoldSpec extends FlatSpecLike
       KeyRange(Key(Utils.toBytes("key1")), true, Option(Key(Utils.toBytes("key2"))), false, Integer.MAX_VALUE))
     val set12 = ret.toSet
     log.debug("content set12: " + ret.mkString(", "))
-    goju.get(Utils.toBytes("key1")) shouldNot be(defined)
-    goju.get(Utils.toBytes("key150")) shouldNot be(defined)
-    goju.get(Utils.toBytes("key1024")) shouldNot be(defined)
+    set12(Utils.toBytes("key1")) should be(false)
+    set12(Utils.toBytes("key150")) should be(false)
+    set12(Utils.toBytes("key1024")) should be(false)
 
     (10 to 19).foreach(i => withClue("value" + i){set12("value" + i) should be(true)})
     (100 to 149).foreach(i => withClue("value" + i){set12("value" + i) should be(true)})
