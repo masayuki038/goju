@@ -110,8 +110,7 @@ object Level extends PlainRpcClient {
   }
 }
 
-class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) extends Actor
-  with PlainRpc
+class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) extends PlainRpc
   with Stash {
   val log = Logging(context.system, this)
   implicit val hashids = Hashids.reference(this.hashCode.toString)

@@ -49,7 +49,7 @@ object Writer extends PlainRpcClient {
   }
 }
 
-class Writer(val name: String, var state: Option[State] = None) extends PlainRpc with Actor {
+class Writer(val name: String, var state: Option[State] = None) extends PlainRpc {
   val log = Logging(context.system, this)
 
   val NODE_SIZE = 8*1024

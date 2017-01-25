@@ -17,7 +17,7 @@ import scala.concurrent.duration._
   * This software is released under the MIT License.
   * http://opensource.org/licenses/mit-license.php
   */
-class FoldWorker(val sendTo: ActorRef) extends Actor with PlainRpc with Stash {
+class FoldWorker(val sendTo: ActorRef) extends PlainRpc with Stash {
   val log = Logging(context.system, this)
 
   var prefixFolders = List.empty[String]

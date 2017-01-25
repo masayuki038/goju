@@ -23,7 +23,7 @@ class FoldRangeCoordinator(val topLevelRef: ActorRef,
                            val range: KeyRange,
                            val func: (Key, Value, (Int, List[Value])) => (Int, List[Value]),
                            var acc: (Int, List[Value]))
-  extends Actor with PlainRpc {
+  extends PlainRpc {
   val log = Logging(context.system, this)
   implicit val hashids = Hashids.reference(this.hashCode.toString)
 

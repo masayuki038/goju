@@ -47,7 +47,7 @@ class PlainRpcSpec extends TestKit(ActorSystem("test"))
   }
 }
 
-class PlainRpcActor extends Actor with PlainRpc {
+class PlainRpcActor extends PlainRpc {
 
   var messageType: Symbol = _
   var message: String = _

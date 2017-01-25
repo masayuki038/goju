@@ -20,20 +20,8 @@ trait PlainRpcClient {
   implicit val logSource: LogSource[AnyRef] = new GojuLogSource()
   val plainRpcLog = Logging(Utils.getActorSystem, this)
 
-  def sendCall(pid: ActorRef, context: ActorContext, msg: Any): ActorRef = {
-    plainRpcLog.debug("sendCall, pid: %s, context: %s, msg: %s".format(pid, context, msg))
-    val monitor = context.watch(pid)
-    pid ! CALL(msg)
-    monitor
-  }
-
   def cast(pid: ActorRef, msg: Any) = {
     pid ! CAST(msg)
-  }
-
-  def sendReply(source: ActorRef, reply: Any) = {
-    plainRpcLog.debug("sendReply, source: %s, reply: %s".format(source, reply))
-    source ! REPLY(reply)
   }
 
   def call(pid: ActorRef, request: Any)(implicit timeout: Timeout): Any = {

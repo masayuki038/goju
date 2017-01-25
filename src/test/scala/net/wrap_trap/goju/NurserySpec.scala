@@ -103,7 +103,7 @@ class NurserySpec extends TestKit(ActorSystem("test"))
   })
 }
 
-class LevelSutbForRecover extends Actor with PlainRpc {
+class LevelSutbForRecover extends PlainRpc {
 
   def receive = {
     case (PlainRpcProtocol.call, (Inject, fileName: String)) => {
