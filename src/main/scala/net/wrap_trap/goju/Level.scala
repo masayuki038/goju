@@ -41,14 +41,14 @@ object Level extends PlainRpcClient {
   }
 
   def lookup(ref: ActorRef, key: Array[Byte]): Option[KeyValue] = {
-    call(ref, (Lookup, key, None)) match {
+    call(ref, Lookup(key, None)) match {
       case NotFound => None
       case kv: KeyValue => Option(kv)
     }
   }
 
   def lookup(ref: ActorRef, key: Array[Byte], f: Option[Value] => Unit): Unit = {
-    cast(ref, (Lookup, key, f))
+    cast(ref, (LookupAsync(key, f)))
   }
 
   def inject(ref: ActorRef, filename: String): Any = {
@@ -96,7 +96,7 @@ object Level extends PlainRpcClient {
 
   def snapshotRange(ref: ActorRef, foldWorkerRef: ActorRef, keyRange: KeyRange): Unit = {
     log.debug("snapshotRange, ref: %s, foldWorkerRef: %s, keyRange: %s".format(ref, foldWorkerRef, keyRange))
-    val folders = call(ref, (InitSnapshotRangeFold, None, foldWorkerRef, keyRange, List.empty[String]))
+    val folders = call(ref, InitSnapshotRangeFold(None, foldWorkerRef, keyRange, List.empty[String]))
       .asInstanceOf[List[String]]
     foldWorkerRef ! Initialize(folders)
   }
@@ -104,7 +104,7 @@ object Level extends PlainRpcClient {
   def blockingRange(ref: ActorRef, foldWorkerRef: ActorRef, keyRange: KeyRange): Unit = {
     log.debug("blockingRange, ref: %s, foldWorkerRef: %s, keyRange.fromKey: %s, keyRange.toKey: %s"
       .format(ref, foldWorkerRef, keyRange.fromKey, keyRange.toKey))
-    val folders = call(ref, (InitBlockingRangeFold, None, foldWorkerRef, keyRange, List.empty[String]))
+    val folders = call(ref, InitBlockingRangeFold(None, foldWorkerRef, keyRange, List.empty[String]))
       .asInstanceOf[List[String]]
     foldWorkerRef ! Initialize(folders)
   }
@@ -173,9 +173,8 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
           case true => {
             this.aReader = Option(RandomReader.open(aFileName))
             this.bReader = Option(RandomReader.open(bFileName))
-            new File(cFileName).exists match {
-              case true =>
-                this.cReader = Option(RandomReader.open(cFileName))
+            if (new File(cFileName).exists) {
+              this.cReader = Option(RandomReader.open(cFileName))
             }
           }
           case false => {
@@ -258,19 +257,19 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
   }
 
   def receive = {
-    case (PlainRpcProtocol.call, (Lookup, key: Array[Byte], from: Option[ActorRef])) => {
+    case (PlainRpcProtocol.call, Lookup(key, from)) => {
       val pid = from.getOrElse(sender)
       doLookup(key, List(this.cReader, this.bReader, this.aReader), this.next) match {
         case NotFound => sendReply(pid, NotFound)
         case (Found, kv) => sendReply(pid, kv)
-        case (Delegate, next: ActorRef) => next ! (PlainRpcProtocol.call, (Lookup, key, Option(pid)))
+        case (Delegate, next: ActorRef) => next ! (PlainRpcProtocol.call, Lookup(key, Option(pid)))
       }
     }
-    case (PlainRpcProtocol.cast, (Lookup, key: Array[Byte], f: (Option[Value] => Unit))) => {
+    case (PlainRpcProtocol.cast, LookupAsync(key, f)) => {
       doLookup(key, List(this.cReader, this.bReader, this.aReader), this.next) match {
         case NotFound => f(None)
         case (Found, value: Option[Value]) => f(value)
-        case (Delegate, pid: ActorRef) => pid ! (PlainRpcProtocol.call, (Lookup, key, f))
+        case (Delegate, pid: ActorRef) => pid ! (PlainRpcProtocol.call, LookupAsync(key, f))
       }
     }
     case (PlainRpcProtocol.call, (Inject, fileName: String)) if cReader.isEmpty => {
@@ -328,27 +327,16 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
     case (merger: ActorRef, StepDone) if (this.stepMergeRef.isDefined && merger == this.stepMergeRef.get) => {
       log.debug("receive StepDone: ref: %s".format(merger))
       context.unwatch(merger)
-      this.wip match {
-        case Some(w) => {
-          this.workDone += w
-          this.wip = Option(0)
-        }
-      }
+      this.wip.foreach(w => {
+        this.workDone += w
+        this.wip = Option(0)
+      })
       this.stepNextRef match {
         case Some(_) => // do nothing
         case None => replyStepOk()
       }
       this.stepMergeRef = None
       unstashAll()
-    }
-    case e: Terminated => {
-      log.debug("received Terminated, e: %s, this.stepMergeRef.get: %s".format(e.actor, this.stepMergeRef))
-      this.stepNextRef match {
-        case Some(_) => // do nothing
-        case None => replyStepOk()
-      }
-      this.stepMergeRef = None
-      this.wip = Option(0)
     }
     case (PlainRpcProtocol.reply, StepOk)
       if((this.stepNextRef.isDefined && sender == this.stepNextRef.get) && this.stepMergeRef.isEmpty) => {
@@ -390,7 +378,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
       sendReply(sender(), true)
       context.stop(self)
     }
-    case (PlainRpcProtocol.call, (InitSnapshotRangeFold, gojuActor: Option[ActorRef], workerPid: ActorRef, range: KeyRange, refList: List[String]))
+    case (PlainRpcProtocol.call, InitSnapshotRangeFold(gojuActor, workerPid, range, refList))
       if(this.folding.isEmpty) => {
       log.debug("receive InitSnapshotRangeFold, workerPid: %s, range: %s, list: %s".format(workerPid, range, refList))
       val (nextList, foldingPids) = (this.aReader, this.bReader, this.cReader) match {
@@ -430,7 +418,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
         case Some(g) => g
       }
       this.next match {
-        case Some(n) => n ! (PlainRpcProtocol.call, (InitSnapshotRangeFold, Option(from), workerPid, range, nextList))
+        case Some(n) => n ! (PlainRpcProtocol.call, InitSnapshotRangeFold(Option(from), workerPid, range, nextList))
         case _ => sendReply(from, nextList.reverse)
       }
       this.folding = foldingPids
@@ -439,7 +427,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
       Utils.deleteFile(filePath)
       this.folding = this.folding.filter(p => p != pid)
     }
-    case (PlainRpcProtocol.call, (InitBlockingRangeFold, gojuActor: Option[ActorRef], workerPid: ActorRef, range: KeyRange, refList: List[String])) => {
+    case (PlainRpcProtocol.call, InitBlockingRangeFold(gojuActor, workerPid, range, refList)) => {
       log.debug("receive InitBlockingRangeFold, workerPid: %s, range: %s, list: %s".format(workerPid, range, refList))
       val newRefList = (this.aReader, this.bReader, this.cReader) match {
         case (None, None, None) => refList
@@ -469,13 +457,17 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
 
           List(aRef, bRef, cRef) ::: refList
         }
+        case _ =>
+          throw new IllegalStateException(
+            "Unexpected file status, aReader: %s, bReader: %s, cReader: %s"
+              .format(this.aReader, this.bReader, this.cReader))
       }
       val from = gojuActor match {
         case None => sender
         case Some(g) => g
       }
       this.next match {
-        case Some(n) => n ! (PlainRpcProtocol.call, (InitBlockingRangeFold, Option(from), workerPid, range, newRefList))
+        case Some(n) => n ! (PlainRpcProtocol.call, InitBlockingRangeFold(Option(from), workerPid, range, newRefList))
         case _ => sendReply(from, newRefList.reverse)
       }
     }
@@ -534,13 +526,11 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
         this.next = Option(level)
         this.maxLevel = this.level + 1
       }
-      this.next match {
-        case Some(n) => {
-          val mRef = sendCall(n, this.context, (Inject, outFileName))
-          this.injectDoneRef = Option(mRef)
-          this.mergePid = None
-        }
-      }
+      this.next.foreach(n => {
+        val mRef = sendCall(n, this.context, (Inject, outFileName))
+        this.injectDoneRef = Option(mRef)
+        this.mergePid = None
+      })
     }
     case (PlainRpcProtocol.reply, ret: Boolean) if this.injectDoneRef.isDefined && sender == this.injectDoneRef.get => {
       log.debug("received reply, true if this.injectDoneRef.isDefined && sender == this.injectDoneRef")
@@ -560,7 +550,16 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
         }
       }
     }
-    case Terminated(mRef) if mRef == this.injectDoneRef => {
+    case Terminated(mRef)  if this.stepMergeRef.isDefined && mRef == this.stepMergeRef.get => {
+      log.debug("received Terminated, e: %s, this.stepMergeRef.get: %s".format(mRef, this.stepMergeRef))
+      this.stepNextRef match {
+        case Some(_) => // do nothing
+        case None => replyStepOk()
+      }
+      this.stepMergeRef = None
+      this.wip = Option(0)
+    }
+    case Terminated(mRef) if this.injectDoneRef.isDefined && mRef == this.injectDoneRef.get => {
       throw new IllegalStateException("injectDoneRef has down")
     }
   }
@@ -660,13 +659,11 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
 
     val mergeRef = (workToDoHere > 0) match {
       case true => {
-        this.mergePid match {
-          case Some(pid) => {
-           context.watch(pid)
-            pid ! (Step, pid, workToDoHere)
-            Option(pid)
-          }
-        }
+        this.mergePid.map(pid => {
+          context.watch(pid)
+          pid ! (Step, pid, workToDoHere)
+          pid
+        })
       }
       case false => None
     }

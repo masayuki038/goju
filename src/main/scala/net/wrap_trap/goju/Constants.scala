@@ -3,6 +3,9 @@ package net.wrap_trap.goju
 import java.nio.charset.Charset
 
 import akka.actor.ActorRef
+import net.wrap_trap.goju.Constants.Value
+import net.wrap_trap.goju.element.KeyValue
+import net.wrap_trap.goju.element.Element
 
 /**
   * goju-to: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
@@ -62,7 +65,8 @@ case object SnapshotRange extends RangeType
 
 sealed abstract class LevelOp
 case object Query extends LevelOp
-case object Lookup extends LevelOp
+case class Lookup(key: Array[Byte], from: Option[ActorRef]) extends LevelOp
+case class LookupAsync(key: Array[Byte], f: (Option[Value] => Unit)) extends LevelOp
 case object Inject extends LevelOp
 case object BeginIncrementalMerge extends LevelOp
 case object AwaitIncrementalMerge extends LevelOp
@@ -70,10 +74,10 @@ case object UnmergedCount extends LevelOp
 case object SetMaxLevel extends LevelOp
 case object Close extends LevelOp
 case object Destroy extends LevelOp
-case object InitSnapshotRangeFold extends LevelOp
-case object InitBlockingRangeFold extends LevelOp
+case class InitSnapshotRangeFold(gojuActor: Option[ActorRef], workerPid: ActorRef, range: KeyRange, refList: List[String]) extends LevelOp
+case class InitBlockingRangeFold(gojuActor: Option[ActorRef], workerPid: ActorRef, range: KeyRange, refList: List[String]) extends LevelOp
 case object LevelResult extends LevelOp
-case object LevelResults extends LevelOp
+case class LevelResults(pid: ActorRef, kvs: List[Element]) extends LevelOp
 case object RangeFoldDone extends LevelOp
 case object LevelLimit extends LevelOp
 case object LevelDone extends LevelOp

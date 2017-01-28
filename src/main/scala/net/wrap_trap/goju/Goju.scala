@@ -121,7 +121,7 @@ class Goju(val dirPath: String) extends PlainRpcClient {
       this.nursery = Option(Nursery.newNursery(this.dirPath, min, this.maxLevel.get))
       Level.close(this.topLevelRef.get)
     } catch {
-      case ignore => {
+      case ignore: Exception => {
         log.warning("Failed to Goju#close", ignore)
       }
     }
@@ -134,7 +134,7 @@ class Goju(val dirPath: String) extends PlainRpcClient {
       Level.destroy(this.topLevelRef.get)
       this.maxLevel = Option(topLevelNumber)
     } catch {
-      case ignore => {
+      case ignore: Exception => {
         log.warning("Failed to Goju#destroy", ignore)
       }
     }

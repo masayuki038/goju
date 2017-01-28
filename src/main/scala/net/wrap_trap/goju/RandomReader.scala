@@ -49,17 +49,15 @@ class RandomReader(val name: String) extends Reader {
   }
 
   def foldInNode(func: (List[Element], Element) => List[Element], node: Option[ReaderNode], acc0: List[Element]): List[Element] = {
-    node match {
-      case Some(n) => {
-        n.level match {
-          case 0 => {
-            val acc1 = n.members.foldLeft(acc0) { (acc, element) => func(acc, element) }
-            fold(func, acc1)
-          }
-          case _ => foldInNode(func, acc0)
+    node.map(n => {
+      n.level match {
+        case 0 => {
+          val acc1 = n.members.foldLeft(acc0) { (acc, element) => func(acc, element) }
+          fold(func, acc1)
         }
+        case _ => foldInNode(func, acc0)
       }
-    }
+    }).get
   }
 
   def foldInNode(func: (List[Element], Element) => List[Element], acc0: List[Element]): List[Element] = {
@@ -89,6 +87,7 @@ class RandomReader(val name: String) extends Reader {
             log.debug("lookup, bytes: %s, lookupInNode(key): Some(PosLen)".format(strKey))
             None
           }
+          case Some(e) => throw new IllegalStateException("Unexpected e: %s".format(e))
           case None => {
             log.debug("lookup, bytes: %s, lookupInNode(key): false".format(strKey))
             None
@@ -154,10 +153,12 @@ class RandomReader(val name: String) extends Reader {
             case (e, acc, limit) => {
               (Continue, acc, limit)
             }
+            case unexpected => throw new IllegalStateException("Unexpected results: %s".format(unexpected))
           }
         }, acc0, limit, node.members) match {
           case (Stopped, result, _) => result
           case (Ok, acc1, limit) => rangeFoldFromHere(func, acc1, range, limit)
+          case unexpected => throw new IllegalStateException("Unexpected results of foldUntilStop: %s".format(unexpected))
         }
       }
     }
@@ -204,11 +205,7 @@ class RandomReader(val name: String) extends Reader {
       case 0 => findInLeaf(key, node.members)
       case _ => {
         find1(key, node.members) match {
-          case Some(posLen) => {
-            readNode(posLen) match {
-              case Some(node) => lookupInNode2(node, key)
-            }
-          }
+          case Some(posLen) => readNode(posLen).flatMap(node => lookupInNode2(node, key))
           case None => None
         }
       }
@@ -221,11 +218,7 @@ class RandomReader(val name: String) extends Reader {
         node.members.find(e => e.key == key)
       }
       case _ => find1(key, node.members) match {
-        case Some(posLen) => {
-          readNode(posLen) match {
-            case Some(n) => lookupInNode2(n, key)
-          }
-        }
+        case Some(posLen) => readNode(posLen).flatMap(n => lookupInNode2(n, key))
         case None => None
       }
     }

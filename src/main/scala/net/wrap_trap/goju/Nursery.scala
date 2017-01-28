@@ -223,6 +223,7 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
           new KeyValue(key, Constants.TOMBSTONE, Option(Utils.expireTime(dbExpireSecs)))
         case (Put, (key: Array[Byte], value: Value)) =>
           new KeyValue(key, value, Option(Utils.expireTime(dbExpireSecs)))
+        case _ => throw new IllegalArgumentException("Unexpected spec: %s".format(spec))
       }
     }
 

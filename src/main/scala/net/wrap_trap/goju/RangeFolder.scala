@@ -44,6 +44,7 @@ class RangeFolder(filePath: String, workerPid: ActorRef, owner: ActorRef, range:
             log.debug("doRangeFold2, f: %d".format(f))
             ((f - 1), e :: acc)
           }
+          case unexpected => throw new IllegalStateException("Unexpected value: %s".format(unexpected))
         }
       },
       (FOLD_CHUNK_SIZE - 1, List.empty[Element]),
@@ -54,7 +55,7 @@ class RangeFolder(filePath: String, workerPid: ActorRef, owner: ActorRef, range:
 
   def send(workerPid: ActorRef, selfOrRef: ActorRef, reverseKvs: List[Element]): Unit = {
     log.debug("send, workerPid: %s, selfOrRef: %s, reverseKvs.size: %d".format(workerPid, selfOrRef, reverseKvs.size))
-    call(workerPid, (LevelResults, selfOrRef, reverseKvs.reverse))
+    call(workerPid, LevelResults(selfOrRef, reverseKvs.reverse))
   }
 
   def receive = {

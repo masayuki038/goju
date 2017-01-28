@@ -41,11 +41,11 @@ case class KeyRange(val fromKey: Key,
 
   override def toString(): String = {
     val hFromKey = Utils.toHexStrings(this.fromKey.bytes)
-    val sFromKey = try {Utils.fromBytes(this.fromKey.bytes)} catch {case _ => "-"}
+    val sFromKey = try {Utils.fromBytes(this.fromKey.bytes)} catch {case _: Exception => "-"}
     val (hToKey, sToKey) = this.toKey match {
       case Some(t) => {
         val hToKey = Utils.toHexStrings(t.bytes)
-        val sToKey = try {Utils.fromBytes(t.bytes)} catch {case _ => "-"}
+        val sToKey = try {Utils.fromBytes(t.bytes)} catch {case _: Exception => "-"}
         (hToKey, sToKey)
       }
       case None => ("-", "-")

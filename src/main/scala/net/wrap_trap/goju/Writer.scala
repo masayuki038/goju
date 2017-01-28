@@ -106,6 +106,7 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
       case ('count) => {
         this.state match {
           case Some(s) => s.valueCount + s.tombstoneCount
+          case None => throw new IllegalStateException("this.state is not defined")
         }
       }
       case ('close) => {
@@ -131,12 +132,10 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
         val bloomBin = SerDes.serializeBloom(s.bloom)
         val rootPos = s.lastNodePos match {
           case 0L => {
-            s.indexFile match {
-              case Some(file) => {
-                file.writeInt(0)
-                file.writeShort(0)
-              }
-            }
+            s.indexFile.foreach(file => {
+              file.writeInt(0)
+              file.writeShort(0)
+            })
             FIRST_BLOCK_POS
           }
           case _ => s.lastNodePos
@@ -146,12 +145,10 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
           baos.write(bloomBin)
           baos.write(Utils.to4Bytes(bloomBin.length))
           baos.write(Utils.to8Bytes(rootPos))
-          s.indexFile match {
-            case Some(file) => {
-              file.write(baos.toByteArray)
-              file.close
-            }
-          }
+          s.indexFile.foreach(file => {
+            file.write(baos.toByteArray)
+            file.close
+          })
           s.copy(
             indexFile = None,
             indexFilePos = 0
@@ -231,10 +228,7 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
           Utils.dumpBinary(blockData,"flushNode#blockData" )
         }
         val data = Utils.to4Bytes(blockData.size + 2) ++ Utils.to2Bytes(level) ++ blockData
-
-        s.indexFile match {
-          case Some(file) => file.write(data)
-        }
+        s.indexFile.foreach(_.write(data))
 
         val posLen = new KeyRef(orderedMembers.head.key, s.indexFilePos, blockData.size + 6)
         val newState = s.copy(
@@ -245,6 +239,7 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
         )
         appendNode(level + 1, posLen, newState)
       }
+      case _ => throw new IllegalStateException("Unexpected s.nodes: %s".format(s.nodes))
     }
   }
 }

@@ -112,7 +112,7 @@ class FoldWorker(val sendTo: ActorRef) extends PlainRpc with Stash {
       log.debug("receive LevelResult(stash), pid: %s, e.key: %s, this.pids: %s".format(pid, Utils.toHexStrings(e.key.bytes), this.pids))
       stash()
     }
-    case (PlainRpcProtocol.call, (LevelResults, pid: ActorRef, kvs: List[KeyValue]))
+    case (PlainRpcProtocol.call, LevelResults(pid, kvs))
       if((this.pids.size > 0) && (pid.toString == this.pids.head)) => {
       log.debug("receive LevelResults, pid: %s, this.pids: %s".format(pid, this.pids))
       sendReply(sender(), Ok)
@@ -124,7 +124,7 @@ class FoldWorker(val sendTo: ActorRef) extends PlainRpc with Stash {
       }
       unstashAll()
     }
-    case (PlainRpcProtocol.call, (LevelResults, pid: ActorRef, kvs: List[KeyValue])) => {
+    case (PlainRpcProtocol.call, LevelResults(pid, _)) => {
       log.debug("receive LevelResults(stash), pid: %s, this.pids: %s".format(pid, this.pids))
       stash()
     }
@@ -136,7 +136,7 @@ class FoldWorker(val sendTo: ActorRef) extends PlainRpc with Stash {
       case 0 => emitNext()
       case _ => {
         val target = this.savePids.head
-        refQueues.find{ case(k, _) => k == target} match {
+        this.refQueues.find{ case(k, _) => k == target} match {
           case Some((pid, queue)) => {
             queue.isEmpty match {
               case true => {
@@ -172,6 +172,9 @@ class FoldWorker(val sendTo: ActorRef) extends PlainRpc with Stash {
               }
             }
           }
+          case None =>
+            throw new IllegalStateException(
+              "Failed to find target in refQueue. target: %s, refQueue: %s".format(target, this.refQueues))
         }
       }
     }
