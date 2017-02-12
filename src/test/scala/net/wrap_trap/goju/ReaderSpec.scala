@@ -2,7 +2,7 @@ package net.wrap_trap.goju
 
 import java.io.File
 
-import akka.actor.ActorSystem
+import akka.actor.{ActorSystem, Props}
 import akka.testkit.TestKit
 import net.wrap_trap.goju.element.{Element, KeyValue}
 import org.scalatest._
@@ -20,8 +20,9 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
   with ShouldMatchers
   with StopSystemAfterAll {
 
-  private def write(fileName: String) = {
-    val writer = Writer.open(fileName)
+  private def write(path: String) = {
+    val fileName = new File(path).getName
+    val writer = system.actorOf(Props(classOf[Writer], path, None), "writer-%s-%d".format(fileName, System.currentTimeMillis))
     Writer.add(writer, new KeyValue(Utils.toBytes("foo"), "bar"))
     Writer.add(writer, new KeyValue(Utils.toBytes("hoge"), "hogehoge"))
     Writer.close(writer)

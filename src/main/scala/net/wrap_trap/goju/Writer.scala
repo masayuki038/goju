@@ -21,10 +21,9 @@ import net.wrap_trap.goju.Constants._
   * http://opensource.org/licenses/mit-license.php
   */
 object Writer extends PlainRpcClient {
-
   def open(path: String): ActorRef = {
     val fileName = new File(path).getName
-    Utils.getActorSystem.actorOf(Props(classOf[Writer], path, None), "writer-%s-%d".format(fileName, System.currentTimeMillis))
+    Supervisor.createActor(Props(classOf[Writer], path, None), "writer-%s-%d".format(fileName, System.currentTimeMillis))
   }
 
   def open(path: String, context: ActorContext): ActorRef = {

@@ -36,8 +36,9 @@ class MergeSpec extends TestKit(ActorSystem("test"))
     val mergeTestActor = TestActorRef[MergeTestActor]
   }
 
-  private def writeAndClose(fileName: String, kvs: List[(Key, Value)]) = {
-    val writer = Writer.open(fileName)
+  private def writeAndClose(path: String, kvs: List[(Key, Value)]) = {
+    val fileName = new File(path).getName
+    val writer = system.actorOf(Props(classOf[Writer], path, None), "writer-%s-%d".format(fileName, System.currentTimeMillis))
     for((key, value) <- kvs) {
       Writer.add(writer, new KeyValue(key, value, None))
     }

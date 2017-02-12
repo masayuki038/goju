@@ -5,7 +5,7 @@ import java.nio.file.{Paths, Files}
 
 import akka.actor._
 import akka.util.Timeout
-import akka.event.{LogSource, Logging}
+import akka.event.Logging
 import net.wrap_trap.goju.Constants.Value
 import net.wrap_trap.goju.element.Element
 import net.wrap_trap.goju.element.KeyValue
@@ -29,7 +29,14 @@ object Level extends PlainRpcClient {
 
   def open(dirPath: String, level: Int, owner: Option[ActorRef]): ActorRef = {
     Utils.ensureExpiry
-    Utils.getActorSystem.actorOf(
+    Supervisor.createActor(
+      Props(classOf[Level], dirPath, level, owner),
+      "level%d-%d-%d".format(level, owner.hashCode, System.currentTimeMillis))
+  }
+
+  def open(dirPath: String, level: Int, owner: Option[ActorRef], context: ActorContext): ActorRef = {
+    Utils.ensureExpiry
+    context.actorOf(
       Props(classOf[Level], dirPath, level, owner),
       "level%d-%d-%d".format(level, owner.hashCode, System.currentTimeMillis))
   }
@@ -245,7 +252,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
 
     Utils.deleteFile(xFileName)
 
-    val merger = Utils.getActorSystem.actorOf(
+    val merger = this.context.actorOf(
       Props(classOf[Merge], self, aFileName, bFileName, xFileName, Utils.btreeSize(this.level + 1), next.isEmpty),
       "merge-level%d-%d".format(this.level, System.currentTimeMillis)
     )
@@ -521,7 +528,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
     case (PlainRpcProtocol.cast, (MergeDone, count: Int, outFileName: String)) => {
       log.debug("receive (MergeDone, count: %d, outFileName: %s)".format(count, outFileName))
       if(next.isEmpty) {
-        val level = Level.open(this.dirPath, this.level + 1, this.owner)
+        val level = Level.open(this.dirPath, this.level + 1, this.owner, this.context)
         this.owner.foreach{ o => o ! (BottomLevel, this.level + 1)}
         this.next = Option(level)
         this.maxLevel = this.level + 1

@@ -1,8 +1,10 @@
 package net.wrap_trap.goju
 
-import akka.actor.{Actor, ActorSystem}
+import akka.actor.{Actor, ActorSystem, Props}
 import akka.pattern.AskTimeoutException
 import akka.testkit.{TestActorRef, TestKit}
+
+import java.io.File
 
 import net.wrap_trap.goju.element.KeyValue
 import org.scalatest.{FlatSpecLike, ShouldMatchers}
@@ -21,7 +23,8 @@ class WriterSpec extends TestKit(ActorSystem("test"))
   with StopSystemAfterAll {
 
   trait Factory {
-    val writer = Writer.open("test")
+    val fileName = new File("test").getName
+    val writer = system.actorOf(Props(classOf[Writer], fileName, None), "writer-%s-%d".format(fileName, System.currentTimeMillis))
   }
 
   "Writer.add" should "add a KeyValue" in new Factory {
