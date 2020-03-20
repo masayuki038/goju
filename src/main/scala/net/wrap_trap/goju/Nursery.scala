@@ -183,6 +183,7 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
   }
 
   def lookup(key: Array[Byte]): Option[KeyValue] = {
+    log.debug("lookup(Nursery) key: %s".format(key))
     val element = this.tree.get(Key(key))
     element match {
       case kv: KeyValue => {

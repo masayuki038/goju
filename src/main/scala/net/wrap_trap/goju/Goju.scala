@@ -131,6 +131,7 @@ class Goju(val dirPath: String) extends PlainRpcClient {
   }
 
   def get(key: Array[Byte]): Option[Value] = {
+    log.debug("get key: %s".format(key))
     this.nursery.get.lookup(key) match {
       case Some(e) => Option(e.value)
       case None => {

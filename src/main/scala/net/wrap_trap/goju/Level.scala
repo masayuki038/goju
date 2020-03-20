@@ -260,6 +260,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
 
   def receive = {
     case (PlainRpcProtocol.call, (Lookup, key: Array[Byte], from: Option[ActorRef])) => {
+      log.debug("receive: Lookup(call) key: %s, level: %s".format(key, level))
       val pid = from.getOrElse(sender)
       doLookup(key, List(this.cReader, this.bReader, this.aReader), this.next) match {
         case NotFound => sendReply(pid, NotFound)
@@ -268,6 +269,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
       }
     }
     case (PlainRpcProtocol.cast, (Lookup, key: Array[Byte], f: (Option[Value] => Unit))) => {
+      log.debug("receive: Lookup(cast) key: %s, level: %s".format(key, level))
       doLookup(key, List(this.cReader, this.bReader, this.aReader), this.next) match {
         case NotFound => f(None)
         case (Found, value: Option[Value]) => f(value)
@@ -297,6 +299,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
       sendReply(from, true)
     }
     case (PlainRpcProtocol.call, (Inject, fileName: String)) => {
+      log.debug("receive Inject: fileName: %s".format(fileName))
       stash()
     }
     case (PlainRpcProtocol.call, UnmergedCount) => sendReply(sender(), totalUnmerged)
