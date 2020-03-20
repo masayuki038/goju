@@ -1,15 +1,13 @@
 package net.wrap_trap.goju
 
 import scala.annotation.tailrec
+import java.io._
 
-import java.io.{ByteArrayOutputStream, FileOutputStream, BufferedOutputStream, DataOutputStream}
 import scala.concurrent.duration._
-
-import akka.actor.{ActorRef, Props, Actor}
+import akka.actor.{Actor, ActorContext, ActorRef, Props}
 import akka.util.Timeout
 import akka.event.Logging
-
-import net.wrap_trap.goju.element.{KeyValue, KeyRef, Element}
+import net.wrap_trap.goju.element.{Element, KeyRef, KeyValue}
 import net.wrap_trap.goju.Helper._
 import net.wrap_trap.goju.Constants._
 
@@ -23,9 +21,14 @@ import net.wrap_trap.goju.Constants._
   * http://opensource.org/licenses/mit-license.php
   */
 object Writer extends PlainRpcClient {
+  def open(path: String): ActorRef = {
+    val fileName = new File(path).getName
+    Supervisor.createActor(Props(classOf[Writer], path, None), "writer-%s-%d".format(fileName, System.currentTimeMillis))
+  }
 
-  def open(name: String): ActorRef = {
-    Utils.getActorSystem.actorOf(Props(new Writer(name)), "writer-" + System.currentTimeMillis)
+  def open(path: String, context: ActorContext): ActorRef = {
+    val fileName = new File(path).getName
+    context.actorOf(Props(classOf[Writer], path, None), "writer-%s-%d".format(fileName, System.currentTimeMillis))
   }
 
   def add(actorRef: ActorRef, element: Element) = {
@@ -45,7 +48,7 @@ object Writer extends PlainRpcClient {
   }
 }
 
-class Writer(val name: String, var state: Option[State] = None) extends PlainRpc with Actor {
+class Writer(val name: String, var state: Option[State] = None) extends PlainRpc {
   val log = Logging(context.system, this)
 
   val NODE_SIZE = 8*1024
@@ -102,6 +105,7 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
       case ('count) => {
         this.state match {
           case Some(s) => s.valueCount + s.tombstoneCount
+          case None => throw new IllegalStateException("this.state is not defined")
         }
       }
       case ('close) => {
@@ -127,12 +131,10 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
         val bloomBin = SerDes.serializeBloom(s.bloom)
         val rootPos = s.lastNodePos match {
           case 0L => {
-            s.indexFile match {
-              case Some(file) => {
-                file.writeInt(0)
-                file.writeShort(0)
-              }
-            }
+            s.indexFile.foreach(file => {
+              file.writeInt(0)
+              file.writeShort(0)
+            })
             FIRST_BLOCK_POS
           }
           case _ => s.lastNodePos
@@ -142,12 +144,10 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
           baos.write(bloomBin)
           baos.write(Utils.to4Bytes(bloomBin.length))
           baos.write(Utils.to8Bytes(rootPos))
-          s.indexFile match {
-            case Some(file) => {
-              file.write(baos.toByteArray)
-              file.close
-            }
-          }
+          s.indexFile.foreach(file => {
+            file.write(baos.toByteArray)
+            file.close
+          })
           s.copy(
             indexFile = None,
             indexFilePos = 0
@@ -222,14 +222,12 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
 
         val orderedMembers = node.members.reverse
         val blockData = Utils.encodeIndexNodes(orderedMembers, Compress(Constants.COMPRESS_PLAIN))
-        if(log.isDebugEnabled) {
+        val dumpBuffer = Settings.getSettings().getBoolean("goju.debug.dump_buffer", false)
+        if(dumpBuffer) {
           Utils.dumpBinary(blockData,"flushNode#blockData" )
         }
         val data = Utils.to4Bytes(blockData.size + 2) ++ Utils.to2Bytes(level) ++ blockData
-
-        s.indexFile match {
-          case Some(file) => file.write(data)
-        }
+        s.indexFile.foreach(_.write(data))
 
         val posLen = new KeyRef(orderedMembers.head.key, s.indexFilePos, blockData.size + 6)
         val newState = s.copy(
@@ -240,6 +238,7 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
         )
         appendNode(level + 1, posLen, newState)
       }
+      case _ => throw new IllegalStateException("Unexpected s.nodes: %s".format(s.nodes))
     }
   }
 }

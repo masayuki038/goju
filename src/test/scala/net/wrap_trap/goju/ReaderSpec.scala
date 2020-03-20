@@ -2,7 +2,7 @@ package net.wrap_trap.goju
 
 import java.io.File
 
-import akka.actor.ActorSystem
+import akka.actor.{ActorSystem, Props}
 import akka.testkit.TestKit
 import net.wrap_trap.goju.element.{Element, KeyValue}
 import org.scalatest._
@@ -20,8 +20,9 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
   with ShouldMatchers
   with StopSystemAfterAll {
 
-  private def write(fileName: String) = {
-    val writer = Writer.open(fileName)
+  private def write(path: String) = {
+    val fileName = new File(path).getName
+    val writer = system.actorOf(Props(classOf[Writer], path, None), "writer-%s-%d".format(fileName, System.currentTimeMillis))
     Writer.add(writer, new KeyValue(Utils.toBytes("foo"), "bar"))
     Writer.add(writer, new KeyValue(Utils.toBytes("hoge"), "hogehoge"))
     Writer.close(writer)
@@ -66,17 +67,17 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
     val reader = RandomReader.open(fileName)
     val (_, list) = reader.rangeFold((e, acc0) => {
         e match {
-          case KeyValue(_, v, _) => {
+          case e: KeyValue => {
             val (foldChunkSize, acc) = acc0
-            (foldChunkSize, v :: acc)
+            (foldChunkSize, e :: acc)
           }
         }
       },
       (100, List.empty[Element]),
       KeyRange(Key(Utils.toBytes("fon")), false, Option(Key(Utils.toBytes("hogf"))), false, Integer.MAX_VALUE))
     list.size should be(2)
-    list.find(p => p == "bar") should be(Some("bar"))
-    list.find(p => p == "hogehoge") should be(Some("hogehoge"))
+    list.find{case KeyValue(_, v, _) => v == "bar"} shouldBe defined
+    list.find{case KeyValue(_, v, _) => v == "hogehoge"} shouldBe defined
     reader.destroy
   }
 
@@ -84,17 +85,17 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
     val reader = RandomReader.open(fileName)
     val (_, list) = reader.rangeFold((e, acc0) => {
         e match {
-          case KeyValue(_, v, _) => {
+          case kv: KeyValue => {
             val (foldChunkSize, acc) = acc0
-            (foldChunkSize, v :: acc)
+            (foldChunkSize, kv :: acc)
           }
         }
       },
       (100, List.empty[Element]),
       KeyRange(Key(Utils.toBytes("foo")), true, Option(Key(Utils.toBytes("hoge"))), true, Integer.MAX_VALUE))
     list.size should be(2)
-    list.find(p => p == "bar") should be(Some("bar"))
-    list.find(p => p == "hogehoge") should be(Some("hogehoge"))
+    list.find{case KeyValue(_, v, _) => v == "bar"} shouldBe defined
+    list.find{case KeyValue(_, v, _) => v == "hogehoge"} shouldBe defined
     reader.destroy
   }
 
@@ -102,9 +103,9 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
     val reader = RandomReader.open(fileName)
     val (_, list) = reader.rangeFold((e, acc0) => {
         e match {
-          case KeyValue(_, v, _) => {
+          case kv: KeyValue => {
             val (foldChunkSize, acc) = acc0
-            (foldChunkSize, v :: acc)
+            (foldChunkSize, kv :: acc)
           }
         }
       },
@@ -118,16 +119,16 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
     val reader = RandomReader.open(fileName)
     val (_, list) = reader.rangeFold((e, acc0) => {
         e match {
-          case KeyValue(_, v, _) => {
+          case kv: KeyValue => {
             val (foldChunkSize, acc) = acc0
-            (foldChunkSize, v :: acc)
+            (foldChunkSize, kv :: acc)
           }
         }
       },
       (100, List.empty[Element]),
       KeyRange(Key(Utils.toBytes("foo")), true, Option(Key(Utils.toBytes("hoge"))), false, Integer.MAX_VALUE))
     list.size should be(1)
-    list.find(p => p == "bar") should be(Some("bar"))
+    list.find{case KeyValue(_, v, _) => v == "bar"} shouldBe defined
     reader.destroy
   }
 
@@ -135,17 +136,17 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
     val reader = RandomReader.open(fileName)
     val (_, list) = reader.rangeFold((e, acc0) => {
       e match {
-        case KeyValue(_, v, _) => {
+        case kv: KeyValue => {
           val (foldChunkSize, acc) = acc0
-          (foldChunkSize, v :: acc)
+          (foldChunkSize, kv :: acc)
         }
       }
     },
       (100, List.empty[Element]),
       KeyRange(Key(Utils.toBytes("foo")), true, None, false, Integer.MAX_VALUE))
     list.size should be(2)
-    list.find(p => p == "bar") should be(Some("bar"))
-    list.find(p => p == "hogehoge") should be(Some("hogehoge"))
+    list.find{case KeyValue(_, v, _) => v == "bar"} shouldBe defined
+    list.find{case KeyValue(_, v, _) => v == "hogehoge"} shouldBe defined
     reader.destroy
   }
 
@@ -153,16 +154,16 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
     val reader = RandomReader.open(fileName)
     val (_, list) = reader.rangeFold((e, acc0) => {
         e match {
-          case KeyValue(_, v, _) => {
+          case kv: KeyValue => {
             val (foldChunkSize, acc) = acc0
-            (foldChunkSize, v :: acc)
+            (foldChunkSize, kv :: acc)
           }
         }
       },
       (100, List.empty[Element]),
       KeyRange(Key(Utils.toBytes("foo")), false, Option(Key(Utils.toBytes("hoge"))), true, Integer.MAX_VALUE))
     list.size should be(1)
-    list.find(p => p == "hogehoge") should be(Some("hogehoge"))
+    list.find{case KeyValue(_, v, _) => v == "hogehoge"} shouldBe defined
     reader.destroy
   }
 
@@ -170,18 +171,16 @@ class ReaderSpec extends TestKit(ActorSystem("test"))
     val reader = RandomReader.open(fileName)
     val (_, list) = reader.rangeFold((e, acc0) => {
       e match {
-        case KeyValue(_, v, _) => {
+        case kv: KeyValue => {
           val (foldChunkSize, acc) = acc0
-          (foldChunkSize, v :: acc)
+          (foldChunkSize, kv :: acc)
         }
       }
     },
       (100, List.empty[Element]),
       KeyRange(Key(Utils.toBytes("foo")), false, None, true, Integer.MAX_VALUE))
     list.size should be(1)
-    val kv1 = list.find(p => p == "hogehoge")
-    kv1 should be(defined)
-    kv1.get should be("hogehoge")
+    list.find({case KeyValue(_, v, _) => v == "hogehoge"}) shouldBe defined
     reader.destroy
   }
 

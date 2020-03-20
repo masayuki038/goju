@@ -39,6 +39,8 @@ object Goju extends PlainRpcClient {
 }
 
 class Goju(val dirPath: String) extends PlainRpcClient {
+  val log = Logging(Utils.getActorSystem, this)
+
   val dataFilePattern = ("^[^\\d]+-(\\d+).data$").r
   var nursery: Option[Nursery] = None
   var topLevelRef: Option[ActorRef] = None
@@ -79,6 +81,7 @@ class Goju(val dirPath: String) extends PlainRpcClient {
         case _ => (min, max)
       }
     }}
+    log.info("minLevel: %d, maxLevel: %d".format(minLevel, maxLevel))
     val nurseryFile = new File(this.dirPath + java.io.File.separator + Nursery.DATA_FILENAME)
     if(nurseryFile.exists && !nurseryFile.delete()) {
       throw new IllegalStateException("Failed to delete nursery file: " + nurseryFile.getAbsolutePath)
@@ -89,7 +92,14 @@ class Goju(val dirPath: String) extends PlainRpcClient {
       (Option(level), mergeWork0 + Level.unmergedCount(level))
     }}
     val workPerIter = (maxLevel - minLevel + 1) * Utils.btreeSize(minLevel)
-    val topLevelRef = ref.get
+    val topLevelRef = ref match {
+      case Some(r) => r
+      case _ => {
+        log.error("Failed to get topLevelRef. data files are: ")
+        dir.listFiles.foreach(f => log.error(f.getAbsolutePath))
+        throw new IllegalStateException("Failed to get topLevelRef")
+      }
+    }
     doMerge(topLevelRef, workPerIter, maxMerge, minLevel)
     (topLevelRef, minLevel, maxLevel)
   }
@@ -111,7 +121,7 @@ class Goju(val dirPath: String) extends PlainRpcClient {
       this.nursery = Option(Nursery.newNursery(this.dirPath, min, this.maxLevel.get))
       Level.close(this.topLevelRef.get)
     } catch {
-      case ignore => {
+      case ignore: Exception => {
         log.warning("Failed to Goju#close", ignore)
       }
     }
@@ -124,7 +134,7 @@ class Goju(val dirPath: String) extends PlainRpcClient {
       Level.destroy(this.topLevelRef.get)
       this.maxLevel = Option(topLevelNumber)
     } catch {
-      case ignore => {
+      case ignore: Exception => {
         log.warning("Failed to Goju#destroy", ignore)
       }
     }
@@ -133,6 +143,7 @@ class Goju(val dirPath: String) extends PlainRpcClient {
   def get(key: Array[Byte]): Option[Value] = {
     log.debug("get key: %s".format(key))
     this.nursery.get.lookup(key) match {
+      case Some(e) if e.tombstoned || e.expired => None
       case Some(e) => Option(e.value)
       case None => {
         Level.lookup(this.topLevelRef.get, key) match {
@@ -185,14 +196,3 @@ class Goju(val dirPath: String) extends PlainRpcClient {
     }
   }
 }
-
-sealed abstract class GojuOp
-case object Get extends GojuOp
-case object Transact extends GojuOp
-
-sealed abstract class RangeOp
-case object Start extends RangeOp
-
-sealed abstract class RangeType
-case object BlockingRange extends RangeType
-case object SnapshotRange extends RangeType

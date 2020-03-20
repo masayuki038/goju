@@ -2,9 +2,9 @@ package net.wrap_trap.goju
 
 import akka.util.Timeout
 import akka.event.Logging
-import net.wrap_trap.goju.element.{Element, KeyValue}
+import net.wrap_trap.goju.element.KeyValue
 
-import scala.collection.mutable.Stack
+import scala.collection.mutable.Queue
 import akka.actor.{Terminated, Actor, ActorRef, Stash}
 
 import scala.concurrent.duration._
@@ -17,12 +17,12 @@ import scala.concurrent.duration._
   * This software is released under the MIT License.
   * http://opensource.org/licenses/mit-license.php
   */
-class FoldWorker(val sendTo: ActorRef) extends Actor with PlainRpc with Stash {
+class FoldWorker(val sendTo: ActorRef) extends PlainRpc with Stash {
   val log = Logging(context.system, this)
 
   var prefixFolders = List.empty[String]
   var folding = List.empty[(String, Option[KeyValue])]
-  var refQueues = List.empty[(String, Stack[Any])]
+  var refQueues = List.empty[(String, Queue[Any])]
   var pids = List.empty[String]
   var savePids = List.empty[String]
 
@@ -30,14 +30,14 @@ class FoldWorker(val sendTo: ActorRef) extends Actor with PlainRpc with Stash {
   implicit val timeout = Timeout(callTimeout seconds)
 
   def receive = {
-    case (Prefix, refList: List[String]) => {
-      log.debug("receive Prefix, refList: %s".format(refList.foldLeft("")((acc, s) => acc + "," + s)))
-      this.prefixFolders = refList
+    case prefix: Prefix => {
+      log.debug("receive Prefix, refList: %s".format(prefix.refList))
+      this.prefixFolders = prefix.refList
     }
-    case (Initialize, refList: List[String]) => {
-      log.debug("receive Initialize, refList: %s".format(refList.foldLeft("")((acc, s) => acc + "," + s)))
-      this.savePids = this.prefixFolders ::: refList
-      this.refQueues = for (pid <- this.savePids) yield (pid, new Stack[Any])
+    case initialize: Initialize => {
+      log.debug("receive Initialize, refList: %s".format(initialize.refList))
+      this.savePids = this.prefixFolders ::: initialize.refList
+      this.refQueues = for (pid <- this.savePids) yield (pid, new Queue[Any])
       this.folding = for (pid <- this.savePids) yield (pid, None: Option[KeyValue])
       fill()
     }
@@ -45,45 +45,88 @@ class FoldWorker(val sendTo: ActorRef) extends Actor with PlainRpc with Stash {
       log.debug("receive Terminated")
       // do nothing
     }
-    case _ => {
-      stash()
+    case _ => stash()
+  }
+
+  private def handleLevelDone(strPid: String): Unit = {
+    enter(strPid, Done)
+    this.pids = this.pids.filter(p => p != strPid)
+    if(this.pids.length == 0) {
+      fill()
     }
+    unstashAll()
+  }
+
+  private def handleLevelLimit(strPid: String, key: Key): Unit = {
+    enter(strPid, KeyValue(key, Limit, None))
+    this.pids = pids.filter(p => p != strPid)
+    if(this.pids.length == 0) {
+      fill()
+    }
+    unstashAll()
+  }
+
+  private def handleLevelResult(strPid: String, e: KeyValue): Unit = {
+    enter(strPid, e)
+    this.pids = pids.filter(p => p != strPid)
+    if(this.pids.length == 0) {
+      fill()
+    }
+    unstashAll()
   }
 
   def receive2(): Receive = {
-    case (LevelDone, pid: String) if((this.pids.size > 0) && (pid == this.pids.head)) => {
-      log.debug("receive LevelDone, pid: %s".format(pid))
-      enter(pid, Done)
-      this.pids = this.pids.filter(p => p != pid)
-      if(this.pids.length == 0) {
-        fill()
-      }
+    case (LevelDone, pid: ActorRef) if((this.pids.size > 0) && (pid.toString == this.pids.head)) => {
+      log.debug("receive LevelDone, pid: %s, this.pids: %s".format(pid, this.pids))
+      handleLevelDone(pid.toString)
     }
-    case (LevelLimit, pid: String, key: Key) if((this.pids.size > 0) && (pid == this.pids.head)) => {
-      log.debug("receive LevelLimit, pid: %s, key: %s".format(pid, Utils.toHexStrings(key.bytes)))
-      enter(pid, KeyValue(key, Limit, None))
-      this.pids = pids.filter(p => p != pid)
-      if(this.pids.length == 0) {
-        fill()
-      }
+    case (LevelDone, strPid: String) if((this.pids.size > 0) && (strPid == this.pids.head)) => {
+      log.debug("receive LevelDone, strPid: %s, this.pids: %s".format(strPid, this.pids))
+      handleLevelDone(strPid)
     }
-    case (LevelResult, pid: String, e: KeyValue) if((this.pids.size > 0) && (pid == this.pids.head)) => {
-      log.debug("receive LevelResult, pid: %s, e.key: %s".format(pid, Utils.toHexStrings(e.key.bytes)))
-      enter(pid, e)
-      this.pids = pids.filter(p => p != pid)
-      if(this.pids.length == 0) {
-        fill()
-      }
+    case (LevelDone, pid) => {
+      log.debug("receive LevelDone(stash), pid: %s, this.pids: %s".format(pid, this.pids))
+      stash()
     }
-    case (PlainRpcProtocol.call, (LevelResults, pid: String, kvs: List[KeyValue]))
-      if((this.pids.size > 0) && (pid == this.pids.head)) => {
-      log.debug("receive LevelResults, pid: %s")
+    case (LevelLimit, pid: ActorRef, key: Key) if((this.pids.size > 0) && (pid.toString == this.pids.head)) => {
+      log.debug("receive LevelLimit, pid: %s, key: %s, this.pids: %s".format(pid, Utils.toHexStrings(key.bytes), this.pids))
+      handleLevelLimit(pid.toString, key)
+    }
+    case (LevelLimit, strPid: String, key: Key) if((this.pids.size > 0) && (strPid == this.pids.head)) => {
+      log.debug("receive LevelLimit, strPid: %s, key: %s, this.pids: %s".format(strPid, Utils.toHexStrings(key.bytes), this.pids))
+      handleLevelLimit(strPid, key)
+    }
+    case (LevelLimit, pid, key: Key) => {
+      log.debug("receive LevelLimit(stash), pid: %s, key: %s, this.pids: %s".format(pid, Utils.toHexStrings(key.bytes), this.pids))
+      stash()
+    }
+    case (LevelResult, pid: ActorRef, e: KeyValue) if((this.pids.size > 0) && (pid.toString == this.pids.head)) => {
+      log.debug("receive LevelResult, pid: %s, e.key: %s, this.pids: %s".format(pid, Utils.toHexStrings(e.key.bytes), this.pids))
+      handleLevelResult(pid.toString, e)
+    }
+    case (LevelResult, strPid: String, e: KeyValue) if((this.pids.size > 0) && (strPid == this.pids.head)) => {
+      log.debug("receive LevelResult, strPid: %s, e.key: %s, this.pids: %s".format(strPid, Utils.toHexStrings(e.key.bytes), this.pids))
+      handleLevelResult(strPid, e)
+    }
+    case (LevelResult, pid, e: KeyValue) => {
+      log.debug("receive LevelResult(stash), pid: %s, e.key: %s, this.pids: %s".format(pid, Utils.toHexStrings(e.key.bytes), this.pids))
+      stash()
+    }
+    case (PlainRpcProtocol.call, LevelResults(pid, kvs))
+      if((this.pids.size > 0) && (pid.toString == this.pids.head)) => {
+      log.debug("receive LevelResults, pid: %s, this.pids: %s".format(pid, this.pids))
       sendReply(sender(), Ok)
-      enterMany(pid, kvs)
-      this.pids = pids.filter(p => p != pid)
+      val strPid = pid.toString
+      enterMany(strPid, kvs)
+      this.pids = pids.filter(p => p != strPid)
       if(this.pids.length == 0) {
         fill()
       }
+      unstashAll()
+    }
+    case (PlainRpcProtocol.call, LevelResults(pid, _)) => {
+      log.debug("receive LevelResults(stash), pid: %s, this.pids: %s".format(pid, this.pids))
+      stash()
     }
   }
 
@@ -93,7 +136,7 @@ class FoldWorker(val sendTo: ActorRef) extends Actor with PlainRpc with Stash {
       case 0 => emitNext()
       case _ => {
         val target = this.savePids.head
-        refQueues.find{ case(k, _) => k == target} match {
+        this.refQueues.find{ case(k, _) => k == target} match {
           case Some((pid, queue)) => {
             queue.isEmpty match {
               case true => {
@@ -105,16 +148,16 @@ class FoldWorker(val sendTo: ActorRef) extends Actor with PlainRpc with Stash {
               case false => {
                 log.debug("fill, queue is not empty")
                 // Not calling keyreplace since queue is mutable.
-                queue.pop() match {
+                queue.dequeue() match {
                   case Done => {
-                    log.debug("fill, queue.pop(): Done")
+                    log.debug("fill, queue.dequeue(): Done")
                     this.folding = this.folding.filter(p => p._1 != pid)
                     this.savePids = this.savePids.tail
                     fill()
                   }
                   case kv: KeyValue => {
-                    log.debug("fill, queue.pop(): KeyValue")
-                    this.folding  = this.folding .map(p => {
+                    log.debug("fill, queue.dequeue(): KeyValue")
+                    this.folding  = this.folding.map(p => {
                       val (initialPid, _) = p
                       if(initialPid == pid) {
                         (initialPid, Option(kv))
@@ -129,6 +172,9 @@ class FoldWorker(val sendTo: ActorRef) extends Actor with PlainRpc with Stash {
               }
             }
           }
+          case None =>
+            throw new IllegalStateException(
+              "Failed to find target in refQueue. target: %s, refQueue: %s".format(target, this.refQueues))
         }
       }
     }
@@ -155,8 +201,8 @@ class FoldWorker(val sendTo: ActorRef) extends Actor with PlainRpc with Stash {
         case (pid, Some(kv: KeyValue)) if kv.key < retKv.key => {
           (kv, List(pid))
         }
-        case (pid, Some(element: Element)) => {
-          (element, pid :: pidList)
+        case (pid, Some(kv: KeyValue)) if kv.key == retKv.key => {
+          (retKv, pid :: pidList)
         }
         case (_, _) => acc
       }
@@ -181,16 +227,17 @@ class FoldWorker(val sendTo: ActorRef) extends Actor with PlainRpc with Stash {
     }
   }
 
-  private def enter(pid: String, message: Any): Unit = {
-    log.debug("enter, pid: %s, message: %s".format(pid, message))
-    this.refQueues.find{ case (p, _) => p == pid}
-      .foreach{ case (_, queue) => queue.push(message)}
+  private def enter(strPid: String, message: Any): Unit = {
+    log.debug("enter, strPid: %s, message: %s".format(strPid, message))
+    this.refQueues.find{ case (p, _) => p == strPid}
+      .foreach{ case (_, queue) => queue.enqueue(message)}
   }
 
-  private def enterMany(pid: String, messages: List[Any]) = {
-    log.debug("enterMany, pid: %s".format(pid))
-    this.refQueues.find{ case (p, _) => p == pid}
-      .foreach{ case (_, queue) => for (message <- messages) { queue.push(message) }}
+  private def enterMany(strPid: String, messages: List[Any]):Unit = {
+    log.debug("enterMany, strPid: %s".format(strPid))
+    this.refQueues.find{ case (p, _) => p == strPid}
+      .foreach{ case (_, queue) => for (message <- messages) { queue.enqueue(message) }}
+
   }
 }
 

@@ -23,7 +23,7 @@ class FoldRangeCoordinator(val topLevelRef: ActorRef,
                            val range: KeyRange,
                            val func: (Key, Value, (Int, List[Value])) => (Int, List[Value]),
                            var acc: (Int, List[Value]))
-  extends Actor with PlainRpc {
+  extends PlainRpc {
   val log = Logging(context.system, this)
   implicit val hashids = Hashids.reference(this.hashCode.toString)
 
@@ -36,29 +36,28 @@ class FoldRangeCoordinator(val topLevelRef: ActorRef,
     case (PlainRpcProtocol.call, Start) => {
       log.debug("receive Start")
       this.owner = Option(sender)
-      val foldWorkerRef = Utils.getActorSystem.actorOf(
+      val foldWorkerRef = this.context.actorOf(
         Props(classOf[FoldWorker], self),
         "foldWorker-" + System.currentTimeMillis)
       context.watch(foldWorkerRef)
 
-      val nurseryRef = System.nanoTime.hashid
-      foldWorkerRef ! (Prefix, List(nurseryRef))
+      foldWorkerRef ! Prefix(List(self.toString))
 
       range.limit < 10 match {
         case true => {
           // BlockingRange
           Level.blockingRange(this.topLevelRef, foldWorkerRef, range)
-          this.nursery.doLevelFold(foldWorkerRef, nurseryRef, range)
+          this.nursery.doLevelFold(foldWorkerRef, self, range)
         }
         case false => {
           // SnapshotRange
           Level.snapshotRange(this.topLevelRef, foldWorkerRef, range)
-          this.nursery.doLevelFold(foldWorkerRef, nurseryRef, range)
+          this.nursery.doLevelFold(foldWorkerRef, self, range)
         }
       }
     }
     case (PlainRpcProtocol.call, (FoldResult, _, kv: KeyValue)) => {
-      log.debug("receive FoldResult")
+      log.debug("receive FoldResult, kv: %s".format(kv))
       val foldWorkerRef = sender
       sendReply(sender, Ok)
       this.acc = func(kv.key, kv.value, this.acc)

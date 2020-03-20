@@ -5,7 +5,7 @@ import java.nio.file.{Paths, Files}
 
 import akka.actor._
 import akka.util.Timeout
-import akka.event.{LogSource, Logging}
+import akka.event.Logging
 import net.wrap_trap.goju.Constants.Value
 import net.wrap_trap.goju.element.Element
 import net.wrap_trap.goju.element.KeyValue
@@ -29,9 +29,16 @@ object Level extends PlainRpcClient {
 
   def open(dirPath: String, level: Int, owner: Option[ActorRef]): ActorRef = {
     Utils.ensureExpiry
-    Utils.getActorSystem.actorOf(
+    Supervisor.createActor(
       Props(classOf[Level], dirPath, level, owner),
-      "level%d-%d".format(level, System.currentTimeMillis))
+      "level%d-%d-%d".format(level, owner.hashCode, System.currentTimeMillis))
+  }
+
+  def open(dirPath: String, level: Int, owner: Option[ActorRef], context: ActorContext): ActorRef = {
+    Utils.ensureExpiry
+    context.actorOf(
+      Props(classOf[Level], dirPath, level, owner),
+      "level%d-%d-%d".format(level, owner.hashCode, System.currentTimeMillis))
   }
 
   def level(ref: ActorRef): Int = {
@@ -41,14 +48,14 @@ object Level extends PlainRpcClient {
   }
 
   def lookup(ref: ActorRef, key: Array[Byte]): Option[KeyValue] = {
-    call(ref, (Lookup, key, None)) match {
+    call(ref, Lookup(key, None)) match {
       case NotFound => None
       case kv: KeyValue => Option(kv)
     }
   }
 
   def lookup(ref: ActorRef, key: Array[Byte], f: Option[Value] => Unit): Unit = {
-    cast(ref, (Lookup, key, f))
+    cast(ref, (LookupAsync(key, f)))
   }
 
   def inject(ref: ActorRef, filename: String): Any = {
@@ -96,22 +103,21 @@ object Level extends PlainRpcClient {
 
   def snapshotRange(ref: ActorRef, foldWorkerRef: ActorRef, keyRange: KeyRange): Unit = {
     log.debug("snapshotRange, ref: %s, foldWorkerRef: %s, keyRange: %s".format(ref, foldWorkerRef, keyRange))
-    val folders = call(ref, (InitSnapshotRangeFold, foldWorkerRef, keyRange, List.empty[String]))
+    val folders = call(ref, InitSnapshotRangeFold(None, foldWorkerRef, keyRange, List.empty[String]))
       .asInstanceOf[List[String]]
-    foldWorkerRef ! (Initialize, folders)
+    foldWorkerRef ! Initialize(folders)
   }
 
   def blockingRange(ref: ActorRef, foldWorkerRef: ActorRef, keyRange: KeyRange): Unit = {
     log.debug("blockingRange, ref: %s, foldWorkerRef: %s, keyRange.fromKey: %s, keyRange.toKey: %s"
       .format(ref, foldWorkerRef, keyRange.fromKey, keyRange.toKey))
-    val folders = call(ref, (InitBlockingRangeFold, foldWorkerRef, keyRange, List.empty[String]))
+    val folders = call(ref, InitBlockingRangeFold(None, foldWorkerRef, keyRange, List.empty[String]))
       .asInstanceOf[List[String]]
-    foldWorkerRef ! (Initialize, folders)
+    foldWorkerRef ! Initialize(folders)
   }
 }
 
-class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) extends Actor
-  with PlainRpc
+class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) extends PlainRpc
   with Stash {
   val log = Logging(context.system, this)
   implicit val hashids = Hashids.reference(this.hashCode.toString)
@@ -174,9 +180,8 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
           case true => {
             this.aReader = Option(RandomReader.open(aFileName))
             this.bReader = Option(RandomReader.open(bFileName))
-            new File(cFileName).exists match {
-              case true =>
-                this.cReader = Option(RandomReader.open(cFileName))
+            if (new File(cFileName).exists) {
+              this.cReader = Option(RandomReader.open(cFileName))
             }
           }
           case false => {
@@ -247,7 +252,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
 
     Utils.deleteFile(xFileName)
 
-    val merger = Utils.getActorSystem.actorOf(
+    val merger = this.context.actorOf(
       Props(classOf[Merge], self, aFileName, bFileName, xFileName, Utils.btreeSize(this.level + 1), next.isEmpty),
       "merge-level%d-%d".format(this.level, System.currentTimeMillis)
     )
@@ -259,21 +264,21 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
   }
 
   def receive = {
-    case (PlainRpcProtocol.call, (Lookup, key: Array[Byte], from: Option[ActorRef])) => {
+    case (PlainRpcProtocol.call, Lookup(key, from)) =>
       log.debug("receive: Lookup(call) key: %s, level: %s".format(key, level))
       val pid = from.getOrElse(sender)
       doLookup(key, List(this.cReader, this.bReader, this.aReader), this.next) match {
         case NotFound => sendReply(pid, NotFound)
         case (Found, kv) => sendReply(pid, kv)
-        case (Delegate, next: ActorRef) => next ! (PlainRpcProtocol.call, (Lookup, key, Option(pid)))
+        case (Delegate, next: ActorRef) => next ! (PlainRpcProtocol.call, Lookup(key, Option(pid)))
       }
     }
-    case (PlainRpcProtocol.cast, (Lookup, key: Array[Byte], f: (Option[Value] => Unit))) => {
-      log.debug("receive: Lookup(cast) key: %s, level: %s".format(key, level))
+    case (PlainRpcProtocol.cast, LookupAsync(key, f)) => {
+    log.debug("receive: Lookup(cast) key: %s, level: %s".format(key, level))
       doLookup(key, List(this.cReader, this.bReader, this.aReader), this.next) match {
         case NotFound => f(None)
         case (Found, value: Option[Value]) => f(value)
-        case (Delegate, pid: ActorRef) => pid ! (PlainRpcProtocol.call, (Lookup, key, f))
+        case (Delegate, pid: ActorRef) => pid ! (PlainRpcProtocol.call, LookupAsync(key, f))
       }
     }
     case (PlainRpcProtocol.call, (Inject, fileName: String)) if cReader.isEmpty => {
@@ -332,27 +337,16 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
     case (merger: ActorRef, StepDone) if (this.stepMergeRef.isDefined && merger == this.stepMergeRef.get) => {
       log.debug("receive StepDone: ref: %s".format(merger))
       context.unwatch(merger)
-      this.wip match {
-        case Some(w) => {
-          this.workDone += w
-          this.wip = Option(0)
-        }
-      }
+      this.wip.foreach(w => {
+        this.workDone += w
+        this.wip = Option(0)
+      })
       this.stepNextRef match {
         case Some(_) => // do nothing
         case None => replyStepOk()
       }
       this.stepMergeRef = None
       unstashAll()
-    }
-    case e: Terminated => {
-      log.debug("received Terminated, e: %s, this.stepMergeRef.get: %s".format(e.actor, this.stepMergeRef))
-      this.stepNextRef match {
-        case Some(_) => // do nothing
-        case None => replyStepOk()
-      }
-      this.stepMergeRef = None
-      this.wip = Option(0)
     }
     case (PlainRpcProtocol.reply, StepOk)
       if((this.stepNextRef.isDefined && sender == this.stepNextRef.get) && this.stepMergeRef.isEmpty) => {
@@ -394,7 +388,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
       sendReply(sender(), true)
       context.stop(self)
     }
-    case (PlainRpcProtocol.call, (InitSnapshotRangeFold, workerPid: ActorRef, range: KeyRange, refList: List[ActorRef]))
+    case (PlainRpcProtocol.call, InitSnapshotRangeFold(gojuActor, workerPid, range, refList))
       if(this.folding.isEmpty) => {
       log.debug("receive InitSnapshotRangeFold, workerPid: %s, range: %s, list: %s".format(workerPid, range, refList))
       val (nextList, foldingPids) = (this.aReader, this.bReader, this.cReader) match {
@@ -406,7 +400,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
           log.debug("InitSnapshotRangeFold, case (_, None None)")
           Files.createLink(Paths.get(filename("AF")), Paths.get(filename("A")))
           val pid0 = startRangeFold(filename("AF"), workerPid, range)
-          (pid0 :: refList, List(pid0))
+          (pid0.toString :: refList, List(pid0))
         }
         case (_, _, None) => {
           log.debug("InitSnapshotRangeFold, case (_, _, None)")
@@ -414,7 +408,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
           val pidA = startRangeFold(filename("AF"), workerPid, range)
           Files.createLink(Paths.get(filename("BF")), Paths.get(filename("B")))
           val pidB = startRangeFold(filename("BF"), workerPid, range)
-          (List(pidA, pidB) ::: refList, List(pidB, pidA))
+          (List(pidA.toString, pidB.toString) ::: refList, List(pidB, pidA))
         }
         case (_, _, _) => {
           log.debug("InitSnapshotRangeFold, case (_, _, _)")
@@ -424,14 +418,18 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
           val pidB = startRangeFold(filename("BF"), workerPid, range)
           Files.createLink(Paths.get(filename("CF")), Paths.get(filename("C")))
           val pidC = startRangeFold(filename("CF"), workerPid, range)
-          (List(pidA, pidB, pidC) ::: refList, List(pidC, pidB, pidA))
+          (List(pidA.toString, pidB.toString, pidC.toString) ::: refList, List(pidC, pidB, pidA))
         }
       }
 
       log.debug("InitSnapshotRangeFold, this.next: %s".format(this.next))
+      val from = gojuActor match {
+        case None => sender
+        case Some(g) => g
+      }
       this.next match {
-        case Some(n) => n ! (PlainRpcProtocol.call, (InitSnapshotRangeFold, workerPid, range, nextList))
-        case _ => sendReply(sender(), nextList.reverse)
+        case Some(n) => n ! (PlainRpcProtocol.call, InitSnapshotRangeFold(Option(from), workerPid, range, nextList))
+        case _ => sendReply(from, nextList.reverse)
       }
       this.folding = foldingPids
     }
@@ -439,8 +437,8 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
       Utils.deleteFile(filePath)
       this.folding = this.folding.filter(p => p != pid)
     }
-    case (PlainRpcProtocol.call, (InitBlockingRangeFold, workerPid: ActorRef, range: KeyRange, refList: List[String])) => {
-      log.debug("receive InitBlockingRangeFold, workerPid: %s, range: %d, list: %s".format(workerPid, range, refList))
+    case (PlainRpcProtocol.call, InitBlockingRangeFold(gojuActor, workerPid, range, refList)) => {
+      log.debug("receive InitBlockingRangeFold, workerPid: %s, range: %s, list: %s".format(workerPid, range, refList))
       val newRefList = (this.aReader, this.bReader, this.cReader) match {
         case (None, None, None) => refList
         case (Some(a), None, None) => {
@@ -455,7 +453,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
           val bRef = System.nanoTime.hashid
           doRangeFold(b, workerPid, bRef, range)
 
-          List(aRef, bRef) :: refList
+          List(aRef, bRef) ::: refList
         }
         case (Some(a), Some(b), Some(c)) => {
           val aRef = System.nanoTime.hashid
@@ -467,12 +465,20 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
           val cRef = System.nanoTime.hashid
           doRangeFold(b, workerPid, cRef, range)
 
-          List(aRef, bRef, cRef) :: refList
+          List(aRef, bRef, cRef) ::: refList
         }
+        case _ =>
+          throw new IllegalStateException(
+            "Unexpected file status, aReader: %s, bReader: %s, cReader: %s"
+              .format(this.aReader, this.bReader, this.cReader))
+      }
+      val from = gojuActor match {
+        case None => sender
+        case Some(g) => g
       }
       this.next match {
-        case Some(n) => n ! (PlainRpcProtocol.call, (InitBlockingRangeFold, workerPid, range, newRefList))
-        case _ => sendReply(sender(), (Ok, newRefList.reverse))
+        case Some(n) => n ! (PlainRpcProtocol.call, InitBlockingRangeFold(Option(from), workerPid, range, newRefList))
+        case _ => sendReply(from, newRefList.reverse)
       }
     }
     case (PlainRpcProtocol.cast, (MergeDone, 0, outFileName: String)) => {
@@ -525,18 +531,16 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
     case (PlainRpcProtocol.cast, (MergeDone, count: Int, outFileName: String)) => {
       log.debug("receive (MergeDone, count: %d, outFileName: %s)".format(count, outFileName))
       if(next.isEmpty) {
-        val level = Level.open(this.dirPath, this.level + 1, this.owner)
+        val level = Level.open(this.dirPath, this.level + 1, this.owner, this.context)
         this.owner.foreach{ o => o ! (BottomLevel, this.level + 1)}
         this.next = Option(level)
         this.maxLevel = this.level + 1
       }
-      this.next match {
-        case Some(n) => {
-          val mRef = sendCall(n, this.context, (Inject, outFileName))
-          this.injectDoneRef = Option(mRef)
-          this.mergePid = None
-        }
-      }
+      this.next.foreach(n => {
+        val mRef = sendCall(n, this.context, (Inject, outFileName))
+        this.injectDoneRef = Option(mRef)
+        this.mergePid = None
+      })
     }
     case (PlainRpcProtocol.reply, ret: Boolean) if this.injectDoneRef.isDefined && sender == this.injectDoneRef.get => {
       log.debug("received reply, true if this.injectDoneRef.isDefined && sender == this.injectDoneRef")
@@ -556,7 +560,16 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
         }
       }
     }
-    case Terminated(mRef) if mRef == this.injectDoneRef => {
+    case Terminated(mRef)  if this.stepMergeRef.isDefined && mRef == this.stepMergeRef.get => {
+      log.debug("received Terminated, e: %s, this.stepMergeRef.get: %s".format(mRef, this.stepMergeRef))
+      this.stepNextRef match {
+        case Some(_) => // do nothing
+        case None => replyStepOk()
+      }
+      this.stepMergeRef = None
+      this.wip = Option(0)
+    }
+    case Terminated(mRef) if this.injectDoneRef.isDefined && mRef == this.injectDoneRef.get => {
       throw new IllegalStateException("injectDoneRef has down")
     }
   }
@@ -600,7 +613,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
   private def startRangeFold(path: String, workerPid: ActorRef, range: KeyRange): ActorRef = {
     context.actorOf(
       Props(classOf[RangeFolder], path, workerPid, self, range),
-      "rangeFolder-level%d-%d".format(this.level, System.currentTimeMillis))
+      "rangeFolder-level%d-%s".format(this.level, path.replace('/', '-')))
   }
 
   private def destroyIfDefined(reader: Option[RandomReader]): Unit = {
@@ -656,13 +669,11 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
 
     val mergeRef = (workToDoHere > 0) match {
       case true => {
-        this.mergePid match {
-          case Some(pid) => {
-           context.watch(pid)
-            pid ! (Step, pid, workToDoHere)
-            Option(pid)
-          }
-        }
+        this.mergePid.map(pid => {
+          context.watch(pid)
+          pid ! (Step, pid, workToDoHere)
+          pid
+        })
       }
       case false => None
     }
@@ -717,35 +728,3 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
     }
   }
 }
-
-sealed abstract class LevelOp
-case object Query extends LevelOp
-case object Lookup extends LevelOp
-case object Inject extends LevelOp
-case object BeginIncrementalMerge extends LevelOp
-case object AwaitIncrementalMerge extends LevelOp
-case object UnmergedCount extends LevelOp
-case object SetMaxLevel extends LevelOp
-case object Close extends LevelOp
-case object Destroy extends LevelOp
-case object InitSnapshotRangeFold extends LevelOp
-case object InitBlockingRangeFold extends LevelOp
-case object LevelResult extends LevelOp
-case object LevelResults extends LevelOp
-case object RangeFoldDone extends LevelOp
-case object LevelLimit extends LevelOp
-case object LevelDone extends LevelOp
-case object BottomLevel extends LevelOp
-
-case object StepLevel extends LevelOp
-case object StepDone extends LevelOp
-case object StepOk extends LevelOp
-
-sealed abstract class LookupResponse
-case object NotFound extends LookupResponse
-case object Found extends LookupResponse
-case object Delegate extends LookupResponse
-
-sealed abstract class FoldWorkerOp
-case object Initialize extends FoldWorkerOp
-case object Prefix extends FoldWorkerOp

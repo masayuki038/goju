@@ -187,11 +187,7 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
     val element = this.tree.get(Key(key))
     element match {
       case kv: KeyValue => {
-        if(kv.expired()) {
-          None
-        } else {
-          Option(kv)
-        }
+        Option(kv)
       }
       case _ => {
         None
@@ -228,6 +224,7 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
           new KeyValue(key, Constants.TOMBSTONE, Option(Utils.expireTime(dbExpireSecs)))
         case (Put, (key: Array[Byte], value: Value)) =>
           new KeyValue(key, value, Option(Utils.expireTime(dbExpireSecs)))
+        case _ => throw new IllegalArgumentException("Unexpected spec: %s".format(spec))
       }
     }
 
@@ -245,7 +242,7 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
     doIncMerge(ops.length, top)
   }
 
-  def doLevelFold(foldWorkerPid: ActorRef, ref: String, range: KeyRange): Unit = {
+  def doLevelFold(foldWorkerPid: ActorRef, ref: ActorRef, range: KeyRange): Unit = {
     log.debug("doLevelFold, foldWorkerPid: %s, ref: %s, range: %s".format(foldWorkerPid, ref, range))
     val (lastKey, count) = this.tree.foldLeft(None: Option[Key], range.limit){
       case ((lastKey, count), (k: Key, e: Element)) => {
@@ -276,7 +273,3 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
     }
   }
 }
-
-sealed abstract class TransactionOp
-case object Delete extends TransactionOp
-case object Put extends TransactionOp

@@ -28,6 +28,8 @@ class Settings(config: Config) {
 
   def getLong(path: String, default: Long): Long = readValue(path, config.getLong(path), default)
 
+  def getBoolean(path: String, default: Boolean): Boolean = readValue(path, config.getBoolean(path), default)
+
   def hasPath(path: String) = config.hasPath(path)
 
   private def readValue[T](path: String, v: => T, default: T): T = {

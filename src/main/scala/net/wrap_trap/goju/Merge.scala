@@ -1,25 +1,26 @@
 package net.wrap_trap.goju
 
-import akka.actor.{Actor, ActorRef}
-import akka.util.Timeout
-import akka.event.Logging
-import net.wrap_trap.goju.element.Element
 import scala.concurrent.duration._
 
+import akka.actor.{Actor, ActorRef}
+import akka.event.Logging
+import akka.util.Timeout
+import net.wrap_trap.goju.element.Element
+
 /**
-  * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
-
-  * Copyright (c) 2016 Masayuki Takahashi
-
-  * This software is released under the MIT License.
-  * http://opensource.org/licenses/mit-license.php
-  */
-class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPath: String, val size: Int, val isLastLevel: Boolean) extends Actor with PlainRpc {
+ * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
+ *
+ * Copyright (c) 2016 Masayuki Takahashi
+ *
+ * This software is released under the MIT License.
+ * http://opensource.org/licenses/mit-license.php
+ */
+class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPath: String, val size: Int, val isLastLevel: Boolean) extends PlainRpc {
   val log = Logging(context.system, this)
 
   val aReader = SequentialReader.open(aPath)
   val bReader = SequentialReader.open(bPath)
-  val out = Writer.open(outPath)
+  val out = Writer.open(outPath, context)
   var n = 0
   var aKVs: Option[List[Element]] = None
   var bKVs: Option[List[Element]] = None
@@ -30,9 +31,10 @@ class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPa
 
   // for scanOnly
   var cReader: Option[SequentialReader] = None
-  var cKVs:Option[List[Element]] = None
+  var cKVs: Option[List[Element]] = None
 
   override def preStart(): Unit = {
+    log.info("preStart")
     merge()
   }
 
@@ -71,13 +73,13 @@ class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPa
     val a = aKVs.get
     val b = bKVs.get
 
-    if(n < 1 && a.nonEmpty && b.nonEmpty) {
+    if (n < 1 && a.nonEmpty && b.nonEmpty) {
       log.debug("scan, n(%d) < 1 && a.nonEmpty(%d) && b.nonEmpty(%d)".format(this.n, a.size, b.size))
       fromPid.foreach { case (pid, ref) => pid ! (ref, StepDone) }
       return
     }
 
-    if(a.isEmpty) {
+    if (a.isEmpty) {
       log.debug("scan, a.isEmpty")
       aReader.nextNode() match {
         case Some(a2) => {
@@ -95,7 +97,7 @@ class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPa
       }
     }
 
-    if(b.isEmpty) {
+    if (b.isEmpty) {
       log.debug("scan, b.isEmpty")
       bReader.nextNode() match {
         case Some(b2) => {
@@ -116,13 +118,13 @@ class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPa
     log.debug("scan, n(%d) >= 1 and a.nonEmpty(%d) and b.nonEmpty(%d)".format(this.n, a.size, b.size))
     val aKV = a.head
     val bKV = b.head
-    if(aKV.key < bKV.key) {
+    if (aKV.key < bKV.key) {
       log.debug("scan, aKV.key < bKV.key")
       call(out, ('add, aKV))
       this.aKVs = Option(a.tail)
       this.n -= 1
       scan()
-    } else if(aKV.key > bKV.key) {
+    } else if (aKV.key > bKV.key) {
       log.debug("scan, aKV.key > bKV.key")
       call(out, ('add, bKV))
       this.bKVs = Option(b.tail)
@@ -144,13 +146,13 @@ class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPa
     log.debug("scanOnly")
 
     val c = cKVs.get
-    if(n < 1 && c.nonEmpty) {
+    if (n < 1 && c.nonEmpty) {
       log.debug("scanOnly, n(%d) < 1 && c.nonEmpty(%d)".format(this.n, c.size))
       fromPid.foreach { case (pid, ref) => pid ! (ref, StepDone) }
       return
     }
 
-    if(c.isEmpty) {
+    if (c.isEmpty) {
       log.debug("scanOnly, c.isEmpty")
       val reader = cReader.get
       reader.nextNode() match {
@@ -162,6 +164,7 @@ class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPa
         }
         case None => {
           log.debug("scanOnly, c.isEmpty, reader.nextNode() is None")
+          fromPid.foreach { case (pid, ref) => pid ! (ref, StepDone) }
           reader.close()
           val cnt = terminate()
           cast(owner, (MergeDone, cnt, outPath))
@@ -173,7 +176,7 @@ class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPa
 
     log.debug("scanOnly, c >= 1 and c.nonEmpty")
     val cKV = c.head
-    if(!cKV.tombstoned) {
+    if (!cKV.tombstoned) {
       call(out, ('add, cKV))
     }
     this.cKVs = Option(c.tail)
@@ -182,13 +185,9 @@ class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPa
   }
 
   private def terminate(): Int = {
-    log.debug("terminate()")
+    log.info("terminate()")
     val cnt = call(out, ('count))
     call(out, 'close)
     cnt.asInstanceOf[Int]
   }
 }
-
-sealed abstract class MergeOp
-case object Step extends MergeOp
-case object MergeDone extends MergeOp

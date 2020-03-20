@@ -49,17 +49,15 @@ class RandomReader(val name: String) extends Reader {
   }
 
   def foldInNode(func: (List[Element], Element) => List[Element], node: Option[ReaderNode], acc0: List[Element]): List[Element] = {
-    node match {
-      case Some(n) => {
-        n.level match {
-          case 0 => {
-            val acc1 = n.members.foldLeft(acc0) { (acc, element) => func(acc, element) }
-            fold(func, acc1)
-          }
-          case _ => foldInNode(func, acc0)
+    node.map(n => {
+      n.level match {
+        case 0 => {
+          val acc1 = n.members.foldLeft(acc0) { (acc, element) => func(acc, element) }
+          fold(func, acc1)
         }
+        case _ => foldInNode(func, acc0)
       }
-    }
+    }).get
   }
 
   def foldInNode(func: (List[Element], Element) => List[Element], acc0: List[Element]): List[Element] = {
@@ -89,6 +87,7 @@ class RandomReader(val name: String) extends Reader {
             log.debug("lookup, bytes: %s, lookupInNode(key): Some(PosLen)".format(strKey))
             None
           }
+          case Some(e) => throw new IllegalStateException("Unexpected e: %s".format(e))
           case None => {
             log.debug("lookup, bytes: %s, lookupInNode(key): false".format(strKey))
             None
@@ -102,10 +101,10 @@ class RandomReader(val name: String) extends Reader {
     }
   }
 
-  def rangeFold(func: (Element, (Int, List[Value])) => (Int, List[Value]),
-                acc0: (Int, List[Value]),
+  def rangeFold(func: (Element, (Int, List[Element])) => (Int, List[Element]),
+                acc0: (Int, List[Element]),
                 range: KeyRange
-               ): (Int, List[Value]) = {
+               ): (Int, List[Element]) = {
     range.fromKey <= firstKey(this.root.get) match {
       case true => {
         this.randomAccessFile.seek(Constants.FIRST_BLOCK_POS)
@@ -125,10 +124,11 @@ class RandomReader(val name: String) extends Reader {
     }
   }
 
-  def rangeFoldFromHere(func: (Element, (Int, List[Value])) => (Int, List[Value]),
-                        acc0: (Int, List[Value]),
+  def rangeFoldFromHere(func: (Element, (Int, List[Element])) => (Int, List[Element]),
+                        acc0: (Int, List[Element]),
                         range: KeyRange,
-                        limit: Int): (Int, List[Value]) = {
+                        limit: Int): (Int, List[Element]) = {
+    log.debug("rangeFoldHere, range: %s, limit: %d".format(range, limit))
     nextLeafNode() match {
       case None => acc0
       case Some(node) => {
@@ -153,23 +153,28 @@ class RandomReader(val name: String) extends Reader {
             case (e, acc, limit) => {
               (Continue, acc, limit)
             }
+            case unexpected => throw new IllegalStateException("Unexpected results: %s".format(unexpected))
           }
         }, acc0, limit, node.members) match {
           case (Stopped, result, _) => result
           case (Ok, acc1, limit) => rangeFoldFromHere(func, acc1, range, limit)
+          case unexpected => throw new IllegalStateException("Unexpected results of foldUntilStop: %s".format(unexpected))
         }
       }
     }
   }
 
   private def readNode(posLen: PosLen): Option[ReaderNode] = {
+    val dumpBuffer = Settings.getSettings().getBoolean("goju.debug.dump_buffer", false)
     posLen match {
       case PosLen(pos, Some(len)) => {
         this.randomAccessFile.seek(pos + 4)
         val level = this.randomAccessFile.readShort
         val data = new Array[Byte](len - 4 - 2)
         if(this.randomAccessFile.read(data) != data.length) {
-          Utils.dumpBinary(data, "data")
+          if(dumpBuffer) {
+            Utils.dumpBinary(data, "data")
+          }
           throw new IllegalStateException("Failed to read data.")
         }
         val entryList = Utils.decodeIndexNodes(data, Compress(Constants.COMPRESS_PLAIN))
@@ -182,7 +187,7 @@ class RandomReader(val name: String) extends Reader {
           val level = this.randomAccessFile.readShort
           val buf = new Array[Byte](len - 2)
           this.randomAccessFile.read(buf)
-          if(log.isDebugEnabled) {
+          if(dumpBuffer) {
             Utils.dumpBinary(buf, "readNode#buf")
           }
           val entryList = Utils.decodeIndexNodes(buf, Compress(Constants.COMPRESS_PLAIN))
@@ -200,11 +205,7 @@ class RandomReader(val name: String) extends Reader {
       case 0 => findInLeaf(key, node.members)
       case _ => {
         find1(key, node.members) match {
-          case Some(posLen) => {
-            readNode(posLen) match {
-              case Some(node) => lookupInNode2(node, key)
-            }
-          }
+          case Some(posLen) => readNode(posLen).flatMap(node => lookupInNode2(node, key))
           case None => None
         }
       }
@@ -217,11 +218,7 @@ class RandomReader(val name: String) extends Reader {
         node.members.find(e => e.key == key)
       }
       case _ => find1(key, node.members) match {
-        case Some(posLen) => {
-          readNode(posLen) match {
-            case Some(n) => lookupInNode2(n, key)
-          }
-        }
+        case Some(posLen) => readNode(posLen).flatMap(n => lookupInNode2(n, key))
         case None => None
       }
     }
@@ -303,22 +300,23 @@ class RandomReader(val name: String) extends Reader {
   }
 
   private def firstKey(node: ReaderNode): Key = {
-    foldUntilStop((keyValue, _, _) => (Stop, (0, List(keyValue)), 0), (1, List.empty[Element]), 1, node.members) match {
+    foldUntilStop((e, _, _) => (Stop, (0, List(e)), 0), (1, List.empty[KeyValue]), 1, node.members) match {
       case (Stopped, (_, List(KeyValue(k: Key, _, _), _*)), _) => k
       case (Stopped, (_, List(KeyRef(k: Key, _, _), _*)), _) => k
     }
   }
 
-  private def foldUntilStop(func: (Element, (Int, List[Value]), Int) => (FoldStatus, (Int, List[Value]), Int),
-                            acc: (Int, List[Value]),
+  private def foldUntilStop(func: (Element, (Int, List[Element]), Int) => (FoldStatus, (Int, List[Element]), Int),
+                            acc: (Int, List[Element]),
                             limit: Int,
-                            members: List[Element]): (FoldStatus, (Int, List[Value]), Int) = {
+                            members: List[Element]): (FoldStatus, (Int, List[Element]), Int) = {
     foldUntilStop2(func, (Continue, acc, limit), members)
   }
 
-  private def foldUntilStop2(func: (Element, (Int, List[Value]), Int) => (FoldStatus, (Int, List[Value]), Int),
-                             accWithStatus: (FoldStatus, (Int,  List[Value]), Int),
-                             members: List[Element]): (FoldStatus, (Int, List[Value]), Int) = {
+  private def foldUntilStop2(func: (Element, (Int, List[Element]), Int) => (FoldStatus, (Int, List[Element]), Int),
+                             accWithStatus: (FoldStatus, (Int,  List[Element]), Int),
+                             members: List[Element]): (FoldStatus, (Int, List[Element]), Int) = {
+    log.debug("foldUntilStop2, status: %s, acc.size: %d".format(accWithStatus._1, accWithStatus._2._2.size))
     accWithStatus match {
       case (Stop, result, limit) => (Stopped, result, limit)
       case (Continue, acc, limit) if members.length == 0 => (Ok, acc, limit)
