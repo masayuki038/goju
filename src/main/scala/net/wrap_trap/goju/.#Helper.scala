@@ -1,1 +1,0 @@
-masayuki@masayuki-ubuntu.6178:1485679675

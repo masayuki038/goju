@@ -264,7 +264,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
   }
 
   def receive = {
-    case (PlainRpcProtocol.call, Lookup(key, from)) =>
+    case (PlainRpcProtocol.call, Lookup(key, from)) => {
       log.debug("receive: Lookup(call) key: %s, level: %s".format(key, level))
       val pid = from.getOrElse(sender)
       doLookup(key, List(this.cReader, this.bReader, this.aReader), this.next) match {
