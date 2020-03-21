@@ -1,6 +1,7 @@
 package net.wrap_trap.goju
 
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 import akka.actor._
 import akka.util.Timeout
@@ -9,6 +10,7 @@ import net.wrap_trap.goju.Constants.Value
 import net.wrap_trap.goju.Goju._
 import net.wrap_trap.goju.element.KeyValue
 
+import scala.concurrent.Await
 import scala.concurrent.duration._
 
 /**
@@ -117,14 +119,18 @@ class Goju(val dirPath: String) extends PlainRpcClient {
     log.debug("close")
     try {
       Nursery.finish(this.nursery.get, this.topLevelRef.get)
-      val min = Level.level(this.topLevelRef.get)
-      this.nursery = Option(Nursery.newNursery(this.dirPath, min, this.maxLevel.get))
       Level.close(this.topLevelRef.get)
     } catch {
       case ignore: Exception => {
-        log.warning("Failed to Goju#close", ignore)
+        log.error(ignore, "Failed to Goju#close")
       }
     }
+  }
+
+  def terminate(): Unit = {
+    val system = Utils.getActorSystem
+    system.terminate
+    Await.ready(system.whenTerminated, Duration(3, TimeUnit.MINUTES))
   }
 
   def destroy(): Unit = {

@@ -1,5 +1,7 @@
 package net.wrap_trap.goju
 
+import java.io.IOException
+
 import scala.concurrent.duration._
 
 import akka.actor.{Actor, ActorRef}
@@ -36,6 +38,14 @@ class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPa
   override def preStart(): Unit = {
     log.info("preStart")
     merge()
+  }
+
+  override def postStop(): Unit = {
+    forceClose(aReader)
+    forceClose(bReader)
+    if (cReader.isDefined) {
+      forceClose(cReader.get)
+    }
   }
 
   def merge() = {
@@ -143,7 +153,7 @@ class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPa
   // Expect to call this method from "scan" only
   // Therefore, don't call back merging states to other actor
   private def scanOnly()(implicit timeout: Timeout): Unit = {
-    log.debug("scanOnly")
+    log.debug("scanOnly: this.n: %d".format(this.n))
 
     val c = cKVs.get
     if (n < 1 && c.nonEmpty) {
@@ -166,7 +176,7 @@ class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPa
           log.debug("scanOnly, c.isEmpty, reader.nextNode() is None")
           fromPid.foreach { case (pid, ref) => pid ! (ref, StepDone) }
           reader.close()
-          val cnt = terminate()
+          val cnt = mergeDone()
           cast(owner, (MergeDone, cnt, outPath))
           context.stop(self)
           return
@@ -184,10 +194,27 @@ class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPa
     scanOnly()
   }
 
-  private def terminate(): Int = {
-    log.info("terminate()")
+  private def mergeDone(): Int = {
+    log.info("mergeDone")
     val cnt = call(out, ('count))
-    call(out, 'close)
+    close
     cnt.asInstanceOf[Int]
+  }
+
+  private def close(): Unit = {
+    log.debug("close")
+    call(out, 'close)
+    this.aReader.close();
+    this.bReader.close();
+  }
+
+  private def forceClose(reader: SequentialReader): Unit = {
+    try {
+      reader.close
+    } catch {
+      case ignore: IOException => {
+        log.error(ignore, "Failed to close aReader on postStop")
+      }
+    }
   }
 }

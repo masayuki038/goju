@@ -260,7 +260,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
   }
 
   private def filename(prefix: String): String = {
-    "%s%s%s-%d.data".format(dirPath, File.separator, prefix, this.level)
+    "%s/%s-%d.data".format(dirPath, prefix, this.level)
   }
 
   def receive = {
@@ -283,7 +283,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
     }
     case (PlainRpcProtocol.call, (Inject, fileName: String)) if cReader.isEmpty => {
       val from = sender
-      log.debug("receive Inject: fileName: %s, from: %s".format(fileName, from))
+      log.debug("receive Inject && cReader.isEmpty: fileName: %s, from: %s".format(fileName, from))
       val (toFileName, pos) = (this.aReader, this.bReader) match {
         case (None, None) => (filename("A"), 1)
         case (_, None) => (filename("B"), 2)
@@ -316,11 +316,14 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
     }
     case (PlainRpcProtocol.call, (BeginIncrementalMerge, stepSize: Int))
       if (this.stepMergeRef.isEmpty && this.stepNextRef.isEmpty) => {
-      log.debug("receive BeginIncrementalMerge: stepSize: %d".format(stepSize))
+      log.debug("receive BeginIncrementalMerge (stepMergeRef.isEmpty && stepNextRef.isEmpty): stepSize: %d"
+        .format(stepSize))
       sendReply(sender(), true)
       doStep(None, 0, stepSize)
     }
     case (PlainRpcProtocol.call, (BeginIncrementalMerge, stepSize: Int)) => {
+      log.debug("receive BeginIncrementalMerge: stepSize: %d".format(stepSize))
+      log.warning("this.stepMergeRef: %s, this.stepNextRef: %s".format(this.stepMergeRef, this.stepNextRef))
       stash()
     }
     case (PlainRpcProtocol.call, AwaitIncrementalMerge)
@@ -350,8 +353,16 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
     }
     case (PlainRpcProtocol.reply, StepOk)
       if((this.stepNextRef.isDefined && sender == this.stepNextRef.get) && this.stepMergeRef.isEmpty) => {
+      log.debug(
+        "receive: StepOk ((stepNextRef.isDefined && sender == this.stepNextRef.get) && this.stepMergeRef.isEmpty")
       context.unwatch(sender)
       this.stepNextRef = None
+    }
+    case (PlainRpcProtocol.reply, StepOk) => {
+      log.debug("receive: StepOk")
+      log.warning("this.level: %s, sender: %s, this.stepMergeRef: %s, this.stepNextRef: %s"
+        .format(this.level, sender, this.stepMergeRef, this.stepNextRef))
+      stash()
     }
     case (PlainRpcProtocol.call, Close) => {
       closeIfDefined(this.aReader)
@@ -398,24 +409,30 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
         }
         case (_, None, None) => {
           log.debug("InitSnapshotRangeFold, case (_, None None)")
+          log.debug("createLink from A to AF")
           Files.createLink(Paths.get(filename("AF")), Paths.get(filename("A")))
           val pid0 = startRangeFold(filename("AF"), workerPid, range)
           (pid0.toString :: refList, List(pid0))
         }
         case (_, _, None) => {
           log.debug("InitSnapshotRangeFold, case (_, _, None)")
+          log.debug("createLink from A to AF")
           Files.createLink(Paths.get(filename("AF")), Paths.get(filename("A")))
           val pidA = startRangeFold(filename("AF"), workerPid, range)
+          log.debug("createLink from B to BF")
           Files.createLink(Paths.get(filename("BF")), Paths.get(filename("B")))
           val pidB = startRangeFold(filename("BF"), workerPid, range)
           (List(pidA.toString, pidB.toString) ::: refList, List(pidB, pidA))
         }
         case (_, _, _) => {
           log.debug("InitSnapshotRangeFold, case (_, _, _)")
+          log.debug("createLink from A to AF")
           Files.createLink(Paths.get(filename("AF")), Paths.get(filename("A")))
           val pidA = startRangeFold(filename("AF"), workerPid, range)
+          log.debug("createLink from B to BF")
           Files.createLink(Paths.get(filename("BF")), Paths.get(filename("B")))
           val pidB = startRangeFold(filename("BF"), workerPid, range)
+          log.debug("createLink from C to CF")
           Files.createLink(Paths.get(filename("CF")), Paths.get(filename("C")))
           val pidC = startRangeFold(filename("CF"), workerPid, range)
           (List(pidA.toString, pidB.toString, pidC.toString) ::: refList, List(pidC, pidB, pidA))
@@ -624,6 +641,7 @@ class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) ex
   }
 
   private def closeIfDefined(reader: Option[RandomReader]): Unit = {
+    log.debug("closeIfDefined: reader: %s".format(reader))
     reader match {
       case Some(r) => r.close
       case _ => // do nothing

@@ -24,14 +24,15 @@ object Nursery {
   val DATA_FILENAME = "nursery.data"
 
   def newNursery(dirPath: String, minLevel: Int, maxLevel: Int): Nursery = {
+    log.debug("newNursery")
     Utils.ensureExpiry
     new Nursery(dirPath, minLevel, maxLevel)
   }
 
   def flush(nursery: Nursery, top: ActorRef): Nursery = {
     log.debug("flush")
+    finish(nursery, top)
     val logFile = new File(nursery.dirPath + java.io.File.separator + Nursery.LOG_FILENAME)
-    finish(nursery, logFile, top)
     if(logFile.exists) {
       throw new IllegalStateException("Failed to delete log file")
     }
@@ -66,7 +67,7 @@ object Nursery {
   def doRecover(logFile: File, topLevel: ActorRef, minLevel: Int, maxLevel: Int): Unit = {
     log.debug("doRecover: minLevel: %d, maxLevel: %d".format(minLevel, maxLevel))
     val nursery = readNurseryFromLog(logFile, minLevel, maxLevel)
-    finish(nursery, logFile, topLevel)
+    finish(nursery, topLevel)
     if(logFile.exists) {
       throw new IllegalStateException("Failed to delete log file in recover")
     }
@@ -83,19 +84,13 @@ object Nursery {
 
   def finish(nursery: Nursery, topLevel: ActorRef): Unit = {
     log.debug("finish: nursery: %s, topLevel: %s".format(nursery, topLevel))
-    val logFile = new File(nursery.dirPath + java.io.File.separator + LOG_FILENAME)
-    finish(nursery, logFile, topLevel)
-  }
-
-  private def finish(nursery: Nursery, logFilae: File, topLevel: ActorRef): Unit = {
-    log.debug("finish: nursery: %s, logFile: %s, topLevel: %s".format(nursery, logFilae, topLevel))
     Utils.ensureExpiry
 
     if(nursery.tree.size > 0) {
       val btreeFileName = nursery.dirPath + java.io.File.separator + DATA_FILENAME
       val writer = Writer.open(btreeFileName)
       try {
-        nursery.tree.foreach{case(key, e) => {
+        nursery.tree.foreach { case (key, e) => {
           Writer.add(writer, e)
         }}
       } finally {
@@ -122,6 +117,7 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
   val log = Logging(Utils.getActorSystem, this)
 
   val logger = new FileOutputStream(dirPath + java.io.File.separator + Nursery.LOG_FILENAME, true)
+  log.debug("%s created.".format(dirPath + java.io.File.separator + Nursery.LOG_FILENAME))
   var lastSync = System.currentTimeMillis
   var step = 0
   var mergeDone = 0
@@ -132,6 +128,7 @@ class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tre
   }
 
   def destroy() = {
+    log.debug("destroy")
     this.logger.close
     Utils.deleteFile(this.dirPath + java.io.File.separator + Nursery.LOG_FILENAME)
   }

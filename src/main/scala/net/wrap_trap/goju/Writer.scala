@@ -75,6 +75,11 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
     )
   }
 
+  override def postStop() = {
+    close
+    super.postStop
+  }
+
   def receive = {
     case (PlainRpcProtocol.cast, msg) => handleCast(msg)
     case (PlainRpcProtocol.call, msg) => {
@@ -109,8 +114,7 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
         }
       }
       case ('close) => {
-        val newState = archiveNodes(this.state.get)
-        this.state = Option(newState)
+        close
       }
       case msg => throw new IllegalStateException("An unexpected message received. msg: " + msg)
     }
@@ -240,6 +244,12 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
       }
       case _ => throw new IllegalStateException("Unexpected s.nodes: %s".format(s.nodes))
     }
+  }
+
+  private def close() = {
+    log.debug("close")
+    val newState = archiveNodes(this.state.get)
+    this.state = Option(newState)
   }
 }
 

@@ -155,10 +155,12 @@ object Utils {
   }
 
   def deleteFile(filePath: String): Unit = {
+    log.debug("deleteFile: filePath: %s".format(filePath))
     val file = new File(filePath)
     if(file.exists && !file.delete()) {
       throw new IllegalStateException("Failed to delete: " + filePath)
     }
+    log.debug("deleted: %s".format(filePath))
   }
 
   def renameFile(srcPath: String, destPath: String): Unit = {
