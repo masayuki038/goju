@@ -87,6 +87,8 @@ class FoldSpec extends FlatSpecLike
     (90 to 99).foreach(i => withClue("value" + i){set9("value" + i) should be(true)})
     (900 to 999).foreach(i => withClue("value" + i){set9("value" + i) should be(true)})
     goju.close
+    goju.stopLevel()
+    Supervisor.waitForAllChildrenStopped
   }
 
   "foldRange" should "return all entries without tombstoned in each level" in {
@@ -114,6 +116,8 @@ class FoldSpec extends FlatSpecLike
     (151 to 199).foreach(i => withClue("value" + i){set12("value" + i) should be(true)})
     (1000 to 1023).foreach(i => withClue("value" + i){set12("value" + i) should be(true)})
     goju.close
+    goju.stopLevel()
+    Supervisor.waitForAllChildrenStopped
   }
 
   "foldRange" should "return limited entries" in {

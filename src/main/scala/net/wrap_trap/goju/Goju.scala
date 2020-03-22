@@ -49,15 +49,18 @@ class Goju(val dirPath: String) extends PlainRpcClient {
   var maxLevel: Option[Int] = None
 
   def init(): Unit = {
+    log.debug("init")
     Utils.ensureExpiry
     val dir = new File(this.dirPath)
     val (topRef, newNursery, maxLevel) = dir.isDirectory match {
       case true => {
+        log.debug("init: data directory already exists")
         val (topRef, minLevel, maxLevel) = openLevels(dir)
         val newNursery = Nursery.recover(this.dirPath, topRef, minLevel, maxLevel)
         (topRef, newNursery, maxLevel)
       }
       case false => {
+        log.debug("init: data directory does not exist")
         if(!dir.mkdir()) {
           throw new IllegalStateException("Failed to create directory: " + dirPath)
         }
@@ -70,6 +73,7 @@ class Goju(val dirPath: String) extends PlainRpcClient {
     this.nursery = Option(newNursery)
     this.topLevelRef = Option(topRef)
     this.maxLevel = Option(maxLevel)
+    log.debug("init: this.topLevelRef.get: %s".format(this.topLevelRef.get))
   }
 
   private def openLevels(dir: File): (ActorRef, Int, Int) = {
@@ -117,6 +121,7 @@ class Goju(val dirPath: String) extends PlainRpcClient {
 
   def close(): Unit = {
     log.debug("close")
+    log.debug("this.topLevelRef.get: %s".format(this.topLevelRef.get))
     try {
       Nursery.finish(this.nursery.get, this.topLevelRef.get)
       Level.close(this.topLevelRef.get)
@@ -125,6 +130,11 @@ class Goju(val dirPath: String) extends PlainRpcClient {
         log.error(ignore, "Failed to Goju#close")
       }
     }
+  }
+
+  def stopLevel(): Unit = {
+    log.debug("stopLevel")
+    Supervisor.stopChild((this.topLevelRef.get))
   }
 
   def terminate(): Unit = {

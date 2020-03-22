@@ -107,3 +107,6 @@ case object Ok extends FoldStatus
 case object FoldLimit extends FoldStatus
 case object FoldResult extends FoldStatus
 case object FoldDone extends FoldStatus
+
+case object WaitForAllChildrenStopped
+case object StopChild

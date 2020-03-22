@@ -1,6 +1,7 @@
 package net.wrap_trap.goju
 
-import akka.actor.{Actor, ActorRef, Props}
+import akka.actor.{PoisonPill, Actor, ActorRef, Props}
+import akka.event.Logging
 import akka.pattern.ask
 import akka.util.Timeout
 
@@ -28,12 +29,49 @@ object Supervisor {
       case ref: ActorRef => ref
     }
   }
+
+  def stopChild(ref: ActorRef): Unit = {
+    val ret = supervisor ? (StopChild, ref)
+    Await.result(ret, callTimeout.duration) match {
+      case false => throw new IllegalStateException("Failed to stopChild: %s".format(ref))
+      case _ =>
+    }
+  }
+
+  def waitForAllChildrenStopped(): Unit = {
+    while (true) {
+      val ret = supervisor ? WaitForAllChildrenStopped
+      Await.result(ret, Duration.Inf) match {
+        case true => return
+        case _ =>
+      }
+      Thread.sleep(5000L)
+    }
+  }
 }
 
 class Supervisor extends Actor {
+  val log = Logging(context.system, this)
+
   def receive = {
     case (props: Props, name: String) => {
       sender ! this.context.actorOf(props, name)
+    }
+    case (StopChild, ref: ActorRef) => {
+      if (context.children.toSeq.exists(child => child == ref)) {
+        context.stop(ref)
+        context.
+        sender ! true
+      } else {
+        false
+      }
+    }
+    case WaitForAllChildrenStopped => {
+      log.info("Supvervisor: Wait for all children stopped")
+      context.children.foreach { c =>
+        log.info("\tchild: %s".format(c))
+      }
+      sender ! (context.children.size == 0)
     }
   }
 }

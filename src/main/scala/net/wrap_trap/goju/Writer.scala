@@ -115,6 +115,7 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
       }
       case ('close) => {
         close
+        context.stop(self)
       }
       case msg => throw new IllegalStateException("An unexpected message received. msg: " + msg)
     }
