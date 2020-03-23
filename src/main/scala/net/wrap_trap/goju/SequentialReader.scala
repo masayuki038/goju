@@ -4,6 +4,7 @@ import java.io.{File, FileInputStream, BufferedInputStream}
 
 import akka.event.{LogSource, Logging}
 import net.wrap_trap.goju.element.Element
+import org.slf4j.LoggerFactory
 
 /**
   * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
@@ -14,8 +15,7 @@ import net.wrap_trap.goju.element.Element
   * http://opensource.org/licenses/mit-license.php
   */
 object SequentialReader {
-  implicit val logSource: LogSource[AnyRef] = new GojuLogSource()
-  val log = Logging(Utils.getActorSystem, this)
+  val log = LoggerFactory.getLogger(this.getClass)
 
   def open(name: String): SequentialReader = {
     new SequentialReader(name)
@@ -49,14 +49,14 @@ class SequentialReader(val name: String) extends Reader {
       log.debug("close, name: %s".format(this.name))
     } catch {
       case ignore: Exception => {
-        log.warning("Failed to close inputStream", ignore)
+        log.warn("Failed to close inputStream", ignore)
       }
     }
   }
 
   def delete(): Unit = {
     if(!file.delete) {
-      log.warning("Failed to delete file: " + name)
+      log.warn("Failed to delete file: " + name)
     }
   }
 

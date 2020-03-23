@@ -3,10 +3,10 @@ package net.wrap_trap.goju
 import java.io.File
 
 import akka.actor.ActorSystem
-import akka.event.Logging
 import akka.testkit.TestKit
 import net.wrap_trap.goju.Constants.Value
 import org.scalatest._
+import org.slf4j.LoggerFactory
 
 /**
   * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
@@ -22,7 +22,7 @@ class GojuSpec extends TestKit(ActorSystem("goju"))
   with StopSystemAfterAll
   with BeforeAndAfter
   with PlainRpcClient {
-  val log = Logging(Utils.getActorSystem, this)
+  val log = LoggerFactory.getLogger(this.getClass)
 
   "Open, put and get" should "return the value" in {
     import org.scalatest.OptionValues._

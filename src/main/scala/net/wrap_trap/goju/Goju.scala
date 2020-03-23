@@ -5,10 +5,10 @@ import java.util.concurrent.TimeUnit
 
 import akka.actor._
 import akka.util.Timeout
-import akka.event.{LogSource, Logging}
 import net.wrap_trap.goju.Constants.Value
 import net.wrap_trap.goju.Goju._
 import net.wrap_trap.goju.element.KeyValue
+import org.slf4j.LoggerFactory
 
 import scala.concurrent.Await
 import scala.concurrent.duration._
@@ -21,14 +21,8 @@ import scala.concurrent.duration._
   * This software is released under the MIT License.
   * http://opensource.org/licenses/mit-license.php
   */
-
-class GojuLogSource extends LogSource[AnyRef] {
-  def genString(o: AnyRef): String = o.getClass.getName
-  override def getClazz(o: AnyRef): Class[_] = o.getClass
-}
-
 object Goju extends PlainRpcClient {
-  val log = Logging(Utils.getActorSystem, this)
+  val log = LoggerFactory.getLogger(this.getClass)
 
   val callTimeout = Settings.getSettings().getInt("goju.call_timeout", 300)
   implicit val timeout = Timeout(callTimeout seconds)
@@ -41,7 +35,7 @@ object Goju extends PlainRpcClient {
 }
 
 class Goju(val dirPath: String) extends PlainRpcClient {
-  val log = Logging(Utils.getActorSystem, this)
+  val log = LoggerFactory.getLogger(this.getClass)
 
   val dataFilePattern = ("^[^\\d]+-(\\d+).data$").r
   var nursery: Option[Nursery] = None
@@ -50,6 +44,7 @@ class Goju(val dirPath: String) extends PlainRpcClient {
 
   def init(): Unit = {
     log.debug("init")
+    Supervisor.init
     Utils.ensureExpiry
     val dir = new File(this.dirPath)
     val (topRef, newNursery, maxLevel) = dir.isDirectory match {
@@ -127,7 +122,7 @@ class Goju(val dirPath: String) extends PlainRpcClient {
       Level.close(this.topLevelRef.get)
     } catch {
       case ignore: Exception => {
-        log.error(ignore, "Failed to Goju#close")
+        log.error("Failed to Goju#close", ignore)
       }
     }
   }
@@ -138,7 +133,7 @@ class Goju(val dirPath: String) extends PlainRpcClient {
   }
 
   def terminate(): Unit = {
-    val system = Utils.getActorSystem
+    val system = Supervisor.getActorSystem
     system.terminate
     Await.ready(system.whenTerminated, Duration(3, TimeUnit.MINUTES))
   }
@@ -151,7 +146,7 @@ class Goju(val dirPath: String) extends PlainRpcClient {
       this.maxLevel = Option(topLevelNumber)
     } catch {
       case ignore: Exception => {
-        log.warning("Failed to Goju#destroy", ignore)
+        log.warn("Failed to Goju#destroy", ignore)
       }
     }
   }
@@ -199,7 +194,7 @@ class Goju(val dirPath: String) extends PlainRpcClient {
   def foldRange(func: (Key, Value, (Int, List[Value])) => (Int, List[Value]),
                 acc0: (Int, List[Value]),
                 range: KeyRange): List[Value] = {
-    val system = Utils.getActorSystem
+    val system = Supervisor.getActorSystem
     val coordinatorRef = system.actorOf(
       Props(classOf[FoldRangeCoordinator], this.topLevelRef.get, this.nursery.get, range, func, acc0),
       "foldRangeCoordinator-" + System.currentTimeMillis)

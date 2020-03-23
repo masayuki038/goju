@@ -240,7 +240,7 @@ class RandomReader(val name: String) extends Reader {
       case List(_, _) => {
         members match {
           case List(KeyRef(k1, pos, len), KeyRef(k2, _, _), _*)  => {
-            log.warning("find1, return None, key: %s, members[0].keyRef: %s, members[1].keyRef: %s".format(
+            log.warn("find1, return None, key: %s, members[0].keyRef: %s, members[1].keyRef: %s".format(
               Utils.fromBytes(key.bytes), Utils.fromBytes(k1.bytes), Utils.fromBytes(k2.bytes)))
           }
         }
@@ -335,7 +335,7 @@ class RandomReader(val name: String) extends Reader {
 
   def delete(): Unit = {
     if(!file.delete) {
-      log.warning("Failed to delete file: " + name)
+      log.warn("Failed to delete file: " + name)
     }
   }
 }

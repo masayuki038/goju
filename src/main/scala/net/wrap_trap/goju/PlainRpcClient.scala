@@ -1,7 +1,6 @@
 package net.wrap_trap.goju
 
-import akka.actor.{ActorContext, ActorRef}
-import akka.event.{LogSource, Logging}
+import akka.actor.ActorRef
 import akka.pattern.ask
 import akka.util.Timeout
 import net.wrap_trap.goju.PlainRpcProtocol._
@@ -17,9 +16,6 @@ import scala.concurrent.Await
   * http://opensource.org/licenses/mit-license.php
   */
 trait PlainRpcClient {
-  implicit val logSource: LogSource[AnyRef] = new GojuLogSource()
-  val plainRpcLog = Logging(Utils.getActorSystem, this)
-
   def cast(pid: ActorRef, msg: Any) = {
     pid ! CAST(msg)
   }

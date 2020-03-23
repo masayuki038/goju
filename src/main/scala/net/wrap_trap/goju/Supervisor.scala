@@ -1,6 +1,6 @@
 package net.wrap_trap.goju
 
-import akka.actor.{PoisonPill, Actor, ActorRef, Props}
+import akka.actor._
 import akka.event.Logging
 import akka.pattern.ask
 import akka.util.Timeout
@@ -19,19 +19,29 @@ import scala.concurrent.duration._
   */
 object Supervisor {
   implicit val callTimeout = Timeout(Settings.getSettings().getInt("goju.supervisor.call_timeout", 300) seconds)
-  lazy val supervisor = {
-    Utils.getActorSystem.actorOf(Props[Supervisor])
+
+  var maybeActorSystem: Option[ActorSystem] = None
+  var maybeSupervisor: Option[ActorRef] = None
+
+  def init(): Unit = {
+    val actorSystem = ActorSystem("goju")
+    maybeActorSystem = Option(actorSystem)
+    maybeSupervisor = Option(actorSystem.actorOf(Props[Supervisor]))
+  }
+
+  def getActorSystem(): ActorSystem = {
+    maybeActorSystem.get
   }
 
   def createActor(props: Props, name: String): ActorRef = {
-    val ret = supervisor ? (props, name)
+    val ret = maybeSupervisor.get ? (props, name)
     Await.result(ret, callTimeout.duration) match {
       case ref: ActorRef => ref
     }
   }
 
   def stopChild(ref: ActorRef): Unit = {
-    val ret = supervisor ? (StopChild, ref)
+    val ret = maybeSupervisor.get ? (StopChild, ref)
     Await.result(ret, callTimeout.duration) match {
       case false => throw new IllegalStateException("Failed to stopChild: %s".format(ref))
       case _ =>
@@ -40,7 +50,7 @@ object Supervisor {
 
   def waitForAllChildrenStopped(): Unit = {
     while (true) {
-      val ret = supervisor ? WaitForAllChildrenStopped
+      val ret = maybeSupervisor.get ? WaitForAllChildrenStopped
       Await.result(ret, Duration.Inf) match {
         case true => return
         case _ =>
@@ -63,7 +73,7 @@ class Supervisor extends Actor {
         context.
         sender ! true
       } else {
-        false
+        sender ! false
       }
     }
     case WaitForAllChildrenStopped => {

@@ -6,6 +6,7 @@ import akka.util.Timeout
 import net.wrap_trap.goju.Constants.FOLD_CHUNK_SIZE
 import net.wrap_trap.goju.Constants.Value
 import net.wrap_trap.goju.element.{Element, KeyValue}
+import org.slf4j.LoggerFactory
 
 import scala.concurrent.duration._
 
@@ -20,7 +21,6 @@ import scala.concurrent.duration._
 class RangeFolder(filePath: String, workerPid: ActorRef, owner: ActorRef, range: KeyRange) extends PlainRpc {
   val callTimeout = Settings.getSettings().getInt("goju.level.call_timeout", 300)
   implicit val timeout = Timeout(callTimeout seconds)
-  val log = Logging(Utils.getActorSystem, this)
 
   override def preStart() = {
     val reader = RandomReader.open(filePath)

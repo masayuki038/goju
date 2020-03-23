@@ -1,6 +1,6 @@
 package net.wrap_trap.goju
 
-import akka.actor.{Actor, ActorContext, ActorRef}
+import akka.actor.{ActorLogging, Actor, ActorContext, ActorRef}
 import net.wrap_trap.goju.PlainRpcProtocol._
 
 /**
@@ -11,16 +11,16 @@ import net.wrap_trap.goju.PlainRpcProtocol._
   * This software is released under the MIT License.
   * http://opensource.org/licenses/mit-license.php
   */
-trait PlainRpc extends Actor with PlainRpcClient {
+trait PlainRpc extends Actor with PlainRpcClient with ActorLogging {
   def sendCall(pid: ActorRef, context: ActorContext, msg: Any): ActorRef = {
-    plainRpcLog.debug("sendCall, pid: %s, context: %s, msg: %s".format(pid, context, msg))
+    log.debug("sendCall, pid: %s, context: %s, msg: %s".format(pid, context, msg))
     val monitor = context.watch(pid)
     pid ! CALL(msg)
     monitor
   }
 
   def sendReply(source: ActorRef, reply: Any) = {
-    plainRpcLog.debug("sendReply, source: %s, reply: %s".format(source, reply))
+    log.debug("sendReply, source: %s, reply: %s".format(source, reply))
     source ! REPLY(reply)
   }
 }

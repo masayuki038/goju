@@ -5,12 +5,12 @@ import java.nio.file.{Paths, Files}
 
 import akka.actor._
 import akka.util.Timeout
-import akka.event.Logging
 import net.wrap_trap.goju.Constants.Value
 import net.wrap_trap.goju.element.Element
 import net.wrap_trap.goju.element.KeyValue
 import org.hashids.Hashids
 import org.hashids.syntax._
+import org.slf4j.LoggerFactory
 
 import scala.concurrent.duration._
 
@@ -23,7 +23,7 @@ import scala.concurrent.duration._
   * http://opensource.org/licenses/mit-license.php
   */
 object Level extends PlainRpcClient {
-  val log = Logging(Utils.getActorSystem, this)
+  val log = LoggerFactory.getLogger(this.getClass)
   val callTimeout = Settings.getSettings().getInt("goju.level.call_timeout", 300)
   implicit val timeout = Timeout(callTimeout seconds)
 
@@ -86,7 +86,7 @@ object Level extends PlainRpcClient {
       call(ref, Close)
     } catch {
       case ignore: Exception => {
-        log.warning("Failed to close ref: " + ref, ignore)
+        log.warn("Failed to close ref: " + ref, ignore)
       }
     }
   }
@@ -96,7 +96,7 @@ object Level extends PlainRpcClient {
       call(ref, Destroy)
     } catch {
       case ignore: Exception => {
-        log.warning("Failed to close ref: " + ref, ignore)
+        log.warn("Failed to close ref: " + ref, ignore)
       }
     }
   }
@@ -119,7 +119,6 @@ object Level extends PlainRpcClient {
 
 class Level(val dirPath: String, val level: Int, val owner: Option[ActorRef]) extends PlainRpc
   with Stash {
-  val log = Logging(context.system, this)
   implicit val hashids = Hashids.reference(this.hashCode.toString)
 
   var aReader: Option[RandomReader] = None

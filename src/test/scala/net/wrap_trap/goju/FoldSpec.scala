@@ -1,14 +1,15 @@
 package net.wrap_trap.goju
 
-import java.io.{File, FileWriter, RandomAccessFile}
-import java.nio.file.Files
+import java.io.File
+import java.util.concurrent.TimeUnit
 
-import akka.actor.ActorSystem
 import akka.event.Logging
-import akka.testkit.TestKit
 import net.wrap_trap.goju.Constants.Value
-import net.wrap_trap.goju.Helper._
 import org.scalatest._
+import org.slf4j.LoggerFactory
+
+import scala.concurrent.Await
+import scala.concurrent.duration.Duration
 
 /**
   * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
@@ -22,8 +23,7 @@ class FoldSpec extends FlatSpecLike
   with ShouldMatchers
   with BeforeAndAfter
   with PlainRpcClient {
-
-  val log = Logging(Utils.getActorSystem, this)
+  val log = LoggerFactory.getLogger(this.getClass)
 
   "foldRange" should "return all entries in each level" in {
     TestHelper.deleteDirectory(new File("test-fold1"))
@@ -87,13 +87,14 @@ class FoldSpec extends FlatSpecLike
     (90 to 99).foreach(i => withClue("value" + i){set9("value" + i) should be(true)})
     (900 to 999).foreach(i => withClue("value" + i){set9("value" + i) should be(true)})
     goju.close
-    goju.stopLevel()
-    Supervisor.waitForAllChildrenStopped
+    goju.terminate
+    Await.ready(Supervisor.getActorSystem.whenTerminated, Duration(10, TimeUnit.MINUTES))
   }
 
   "foldRange" should "return all entries without tombstoned in each level" in {
     TestHelper.deleteDirectory(new File("test-fold1"))
     val goju = Goju.open("test-fold1")
+
     (1 to 1024).foreach(i => goju.put(Utils.toBytes("key" + i), "value" + i))
     Thread.sleep(5000L)
     goju.delete(Utils.toBytes("key1"))
@@ -116,13 +117,14 @@ class FoldSpec extends FlatSpecLike
     (151 to 199).foreach(i => withClue("value" + i){set12("value" + i) should be(true)})
     (1000 to 1023).foreach(i => withClue("value" + i){set12("value" + i) should be(true)})
     goju.close
-    goju.stopLevel()
-    Supervisor.waitForAllChildrenStopped
+    goju.terminate
+    Await.ready(Supervisor.getActorSystem.whenTerminated, Duration(10, TimeUnit.MINUTES))
   }
 
   "foldRange" should "return limited entries" in {
     TestHelper.deleteDirectory(new File("test-fold1"))
     val goju = Goju.open("test-fold1")
+
     (1 to 1024).foreach(i => goju.put(Utils.toBytes("key" + i), "value" + i))
     Thread.sleep(5000L)
 
@@ -144,5 +146,8 @@ class FoldSpec extends FlatSpecLike
     set12("value1005") should be(true)
     set12("value1006") should be(false)
     set12.size should be(9)
+    goju.close
+    goju.terminate
+    Await.ready(Supervisor.getActorSystem.whenTerminated, Duration(10, TimeUnit.MINUTES))
   }
 }

@@ -3,6 +3,7 @@ package net.wrap_trap.goju
 import java.io.File
 
 import akka.event.{LogSource, Logging}
+import org.slf4j.LoggerFactory
 
 /**
   * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
@@ -13,8 +14,7 @@ import akka.event.{LogSource, Logging}
   * http://opensource.org/licenses/mit-license.php
   */
 object TestHelper {
-  implicit val logSource: LogSource[AnyRef] = new GojuLogSource()
-  val log = Logging(Utils.getActorSystem, this)
+  val log = LoggerFactory.getLogger(this.getClass)
 
   def deleteDirectory(file: File): Unit = {
     if(file.isDirectory) {

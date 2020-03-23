@@ -1,14 +1,12 @@
 package net.wrap_trap.goju
 
-import akka.actor.{Terminated, Props, ActorRef, Actor}
+import akka.actor.{Terminated, Props, ActorRef}
 import akka.util.Timeout
-import akka.event.Logging
 import net.wrap_trap.goju.Constants._
 import net.wrap_trap.goju.element.KeyValue
 import scala.concurrent.duration._
 
 import org.hashids.Hashids
-import org.hashids.syntax._
 
 /**
   * goju-to: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
@@ -24,7 +22,6 @@ class FoldRangeCoordinator(val topLevelRef: ActorRef,
                            val func: (Key, Value, (Int, List[Value])) => (Int, List[Value]),
                            var acc: (Int, List[Value]))
   extends PlainRpc {
-  val log = Logging(context.system, this)
   implicit val hashids = Hashids.reference(this.hashCode.toString)
 
   val callTimeout = Settings.getSettings().getInt("goju.call_timeout", 300)

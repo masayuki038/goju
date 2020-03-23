@@ -2,9 +2,9 @@ package net.wrap_trap.goju
 
 import java.io.ByteArrayInputStream
 
-import akka.event.{Logging, LogSource}
 import net.wrap_trap.goju.Helper._
 import net.wrap_trap.goju.element.Element
+import org.slf4j.LoggerFactory
 
 /**
   * goju-to: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
@@ -15,8 +15,7 @@ import net.wrap_trap.goju.element.Element
   * http://opensource.org/licenses/mit-license.php
   */
 trait Reader {
-  implicit val logSource: LogSource[AnyRef] = new GojuLogSource()
-  val log = Logging(Utils.getActorSystem, this)
+  val log = LoggerFactory.getLogger(this.getClass)
 
   def skip(n: Long): Unit
 

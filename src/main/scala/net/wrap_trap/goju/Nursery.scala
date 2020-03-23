@@ -1,7 +1,7 @@
 package net.wrap_trap.goju
 
 import akka.actor.ActorRef
-import akka.event.{LogSource, Logging}
+import org.slf4j.LoggerFactory
 import collection.JavaConversions._
 import java.io.{FileOutputStream, File}
 import java.util.TreeMap
@@ -17,8 +17,7 @@ import net.wrap_trap.goju.element.{KeyValue, Element}
   * http://opensource.org/licenses/mit-license.php
   */
 object Nursery {
-  implicit val logSource: LogSource[AnyRef] = new GojuLogSource()
-  val log = Logging(Utils.getActorSystem, this)
+  val log = LoggerFactory.getLogger(this.getClass)
 
   val LOG_FILENAME = "nursery.log"
   val DATA_FILENAME = "nursery.data"
@@ -114,7 +113,7 @@ object Nursery {
 }
 
 class Nursery(val dirPath: String, val minLevel: Int, val maxLevel: Int, val tree: TreeMap[Key, Element]) {
-  val log = Logging(Utils.getActorSystem, this)
+  val log = LoggerFactory.getLogger(this.getClass)
 
   val logger = new FileOutputStream(dirPath + java.io.File.separator + Nursery.LOG_FILENAME, true)
   log.debug("%s created.".format(dirPath + java.io.File.separator + Nursery.LOG_FILENAME))

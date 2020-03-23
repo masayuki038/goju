@@ -4,8 +4,7 @@ import java.io.IOException
 
 import scala.concurrent.duration._
 
-import akka.actor.{Actor, ActorRef}
-import akka.event.Logging
+import akka.actor.ActorRef
 import akka.util.Timeout
 import net.wrap_trap.goju.element.Element
 
@@ -17,9 +16,8 @@ import net.wrap_trap.goju.element.Element
  * This software is released under the MIT License.
  * http://opensource.org/licenses/mit-license.php
  */
-class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPath: String, val size: Int, val isLastLevel: Boolean) extends PlainRpc {
-  val log = Logging(context.system, this)
-
+class Merge(val owner: ActorRef, val aPath: String, val bPath: String, val outPath: String,
+            val size: Int, val isLastLevel: Boolean) extends PlainRpc {
   val aReader = SequentialReader.open(aPath)
   val bReader = SequentialReader.open(bPath)
   val out = Writer.open(outPath, context)

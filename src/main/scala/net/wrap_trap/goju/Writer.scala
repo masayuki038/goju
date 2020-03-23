@@ -4,9 +4,8 @@ import scala.annotation.tailrec
 import java.io._
 
 import scala.concurrent.duration._
-import akka.actor.{Actor, ActorContext, ActorRef, Props}
+import akka.actor.{ActorContext, ActorRef, Props}
 import akka.util.Timeout
-import akka.event.Logging
 import net.wrap_trap.goju.element.{Element, KeyRef, KeyValue}
 import net.wrap_trap.goju.Helper._
 import net.wrap_trap.goju.Constants._
@@ -49,8 +48,6 @@ object Writer extends PlainRpcClient {
 }
 
 class Writer(val name: String, var state: Option[State] = None) extends PlainRpc {
-  val log = Logging(context.system, this)
-
   val NODE_SIZE = 8*1024
 
   override def preStart() = {
