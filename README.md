@@ -1,3 +1,3 @@
-(WIP) goju [![Build Status](https://travis-ci.org/masayuki038/goju.svg?branch=master)](https://travis-ci.org/masayuki038/goju)
+(WIP) goju ![](https://github.com/masayuki038/goju/workflows/goju-master/badge.svg)
 =========
 goju is [hanoidb](https://github.com/krestenkrab/hanoidb) clone written in Scala.
