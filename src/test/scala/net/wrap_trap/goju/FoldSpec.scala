@@ -3,7 +3,6 @@ package net.wrap_trap.goju
 import java.io.File
 import java.util.concurrent.TimeUnit
 
-import akka.event.Logging
 import net.wrap_trap.goju.Constants.Value
 import org.scalatest._
 import org.slf4j.LoggerFactory
@@ -12,17 +11,14 @@ import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 
 /**
-  * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
+ * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
 
-  * Copyright (c) 2016 Masayuki Takahashi
+ * Copyright (c) 2016 Masayuki Takahashi
 
-  * This software is released under the MIT License.
-  * http://opensource.org/licenses/mit-license.php
-  */
-class FoldSpec extends FlatSpecLike
-  with ShouldMatchers
-  with BeforeAndAfter
-  with PlainRpcClient {
+ * This software is released under the MIT License.
+ * http://opensource.org/licenses/mit-license.php
+ */
+class FoldSpec extends FlatSpecLike with ShouldMatchers with BeforeAndAfter with PlainRpcClient {
   val log = LoggerFactory.getLogger(this.getClass)
 
   "foldRange" should "return all entries in each level" in {
@@ -31,61 +27,95 @@ class FoldSpec extends FlatSpecLike
     (1 to 1024).foreach(i => goju.put(Utils.toBytes("key" + i), "value" + i))
     Thread.sleep(5000L)
 
-    var ret = goju.foldRange((k, v, acc) => {
-      val (count, list) = acc
-      (count + 1, v :: list)
-    }, (0, List.empty[Value]),
-      KeyRange(Key(Utils.toBytes("key1")), true, Option(Key(Utils.toBytes("key3"))), false, Integer.MAX_VALUE))
+    var ret = goju.foldRange(
+      (_, v, acc) => {
+        val (count, list) = acc
+        (count + 1, v :: list)
+      },
+      (0, List.empty[Value]),
+      KeyRange(
+        Key(Utils.toBytes("key1")),
+        true,
+        Option(Key(Utils.toBytes("key3"))),
+        false,
+        Integer.MAX_VALUE)
+    )
     val set12 = ret.toSet
     log.debug("content set12: " + ret.mkString(", "))
-    (1 to 2).foreach(i => withClue("value" + i){set12("value" + i) should be(true)})
-    (10 to 29).foreach(i => withClue("value" + i){set12("value" + i) should be(true)})
-    (100 to 299).foreach(i => withClue("value" + i){set12("value" + i) should be(true)})
-    (1000 to 1024).foreach(i => withClue("value" + i){set12("value" + i) should be(true)})
+    (1 to 2).foreach(i => withClue("value" + i) { set12("value" + i) should be(true) })
+    (10 to 29).foreach(i => withClue("value" + i) { set12("value" + i) should be(true) })
+    (100 to 299).foreach(i => withClue("value" + i) { set12("value" + i) should be(true) })
+    (1000 to 1024).foreach(i => withClue("value" + i) { set12("value" + i) should be(true) })
 
-    ret = goju.foldRange((k, v, acc) => {
-      val (count, list) = acc
-      (count + 1, v :: list)
-    }, (0, List.empty[Value]),
-      KeyRange(Key(Utils.toBytes("key3")), true, Option(Key(Utils.toBytes("key5"))), false, Integer.MAX_VALUE))
+    ret = goju.foldRange(
+      (_, v, acc) => {
+        val (count, list) = acc
+        (count + 1, v :: list)
+      },
+      (0, List.empty[Value]),
+      KeyRange(
+        Key(Utils.toBytes("key3")),
+        true,
+        Option(Key(Utils.toBytes("key5"))),
+        false,
+        Integer.MAX_VALUE)
+    )
     val set34 = ret.toSet
     log.debug("content set34: " + ret.mkString(", "))
-    (3 to 4).foreach(i => withClue("value" + i){set34("value" + i) should be(true)})
-    (30 to 49).foreach(i => withClue("value" + i){set34("value" + i) should be(true)})
-    (300 to 499).foreach(i => withClue("value" + i){set34("value" + i) should be(true)})
+    (3 to 4).foreach(i => withClue("value" + i) { set34("value" + i) should be(true) })
+    (30 to 49).foreach(i => withClue("value" + i) { set34("value" + i) should be(true) })
+    (300 to 499).foreach(i => withClue("value" + i) { set34("value" + i) should be(true) })
 
-    ret= goju.foldRange((k, v, acc) => {
-      val (count, list) = acc
-      (count + 1, v :: list)
-    }, (0, List.empty[Value]),
-      KeyRange(Key(Utils.toBytes("key5")), true, Option(Key(Utils.toBytes("key7"))), false, Integer.MAX_VALUE))
+    ret = goju.foldRange(
+      (_, v, acc) => {
+        val (count, list) = acc
+        (count + 1, v :: list)
+      },
+      (0, List.empty[Value]),
+      KeyRange(
+        Key(Utils.toBytes("key5")),
+        true,
+        Option(Key(Utils.toBytes("key7"))),
+        false,
+        Integer.MAX_VALUE)
+    )
     val set56 = ret.toSet
     log.debug("content set56: " + ret.mkString(", "))
-    (5 to 6).foreach(i => withClue("value" + i){set56("value" + i) should be(true)})
-    (50 to 69).foreach(i => withClue("value" + i){set56("value" + i) should be(true)})
-    (500 to 699).foreach(i => withClue("value" + i){set56("value" + i) should be(true)})
+    (5 to 6).foreach(i => withClue("value" + i) { set56("value" + i) should be(true) })
+    (50 to 69).foreach(i => withClue("value" + i) { set56("value" + i) should be(true) })
+    (500 to 699).foreach(i => withClue("value" + i) { set56("value" + i) should be(true) })
 
-    ret = goju.foldRange((k, v, acc) => {
-      val (count, list) = acc
-      (count + 1, v :: list)
-    }, (0, List.empty[Value]),
-      KeyRange(Key(Utils.toBytes("key7")), true, Option(Key(Utils.toBytes("key9"))), false, Integer.MAX_VALUE))
+    ret = goju.foldRange(
+      (_, v, acc) => {
+        val (count, list) = acc
+        (count + 1, v :: list)
+      },
+      (0, List.empty[Value]),
+      KeyRange(
+        Key(Utils.toBytes("key7")),
+        true,
+        Option(Key(Utils.toBytes("key9"))),
+        false,
+        Integer.MAX_VALUE)
+    )
     val set78 = ret.toSet
     log.debug("content set78: " + ret.mkString(", "))
-    (7 to 8).foreach(i => withClue("value" + i){set78("value" + i) should be(true)})
-    (70 to 89).foreach(i => withClue("value" + i){set78("value" + i) should be(true)})
-    (700 to 899).foreach(i => withClue("value" + i){set78("value" + i) should be(true)})
+    (7 to 8).foreach(i => withClue("value" + i) { set78("value" + i) should be(true) })
+    (70 to 89).foreach(i => withClue("value" + i) { set78("value" + i) should be(true) })
+    (700 to 899).foreach(i => withClue("value" + i) { set78("value" + i) should be(true) })
 
-    ret = goju.foldRange((k, v, acc) => {
-      val (count, list) = acc
-      (count + 1, v :: list)
-    }, (0, List.empty[Value]),
+    ret = goju.foldRange(
+      (_, v, acc) => {
+        val (count, list) = acc
+        (count + 1, v :: list)
+      },
+      (0, List.empty[Value]),
       KeyRange(Key(Utils.toBytes("key9")), true, None, false, Integer.MAX_VALUE))
     val set9 = ret.toSet
     log.debug("content set9:" + ret.mkString(", "))
     set9.contains("value9") should be(true)
-    (90 to 99).foreach(i => withClue("value" + i){set9("value" + i) should be(true)})
-    (900 to 999).foreach(i => withClue("value" + i){set9("value" + i) should be(true)})
+    (90 to 99).foreach(i => withClue("value" + i) { set9("value" + i) should be(true) })
+    (900 to 999).foreach(i => withClue("value" + i) { set9("value" + i) should be(true) })
     goju.close
     goju.terminate
     Await.ready(Supervisor.getActorSystem.whenTerminated, Duration(10, TimeUnit.MINUTES))
@@ -101,21 +131,29 @@ class FoldSpec extends FlatSpecLike
     goju.delete(Utils.toBytes("key150"))
     goju.delete(Utils.toBytes("key1024"))
 
-    val ret = goju.foldRange((k, v, acc) => {
-      val (count, list) = acc
-      (count + 1, v :: list)
-    }, (0, List.empty[Value]),
-      KeyRange(Key(Utils.toBytes("key1")), true, Option(Key(Utils.toBytes("key2"))), false, Integer.MAX_VALUE))
+    val ret = goju.foldRange(
+      (_, v, acc) => {
+        val (count, list) = acc
+        (count + 1, v :: list)
+      },
+      (0, List.empty[Value]),
+      KeyRange(
+        Key(Utils.toBytes("key1")),
+        true,
+        Option(Key(Utils.toBytes("key2"))),
+        false,
+        Integer.MAX_VALUE)
+    )
     val set12 = ret.toSet
     log.debug("content set12: " + ret.mkString(", "))
     set12(Utils.toBytes("key1")) should be(false)
     set12(Utils.toBytes("key150")) should be(false)
     set12(Utils.toBytes("key1024")) should be(false)
 
-    (10 to 19).foreach(i => withClue("value" + i){set12("value" + i) should be(true)})
-    (100 to 149).foreach(i => withClue("value" + i){set12("value" + i) should be(true)})
-    (151 to 199).foreach(i => withClue("value" + i){set12("value" + i) should be(true)})
-    (1000 to 1023).foreach(i => withClue("value" + i){set12("value" + i) should be(true)})
+    (10 to 19).foreach(i => withClue("value" + i) { set12("value" + i) should be(true) })
+    (100 to 149).foreach(i => withClue("value" + i) { set12("value" + i) should be(true) })
+    (151 to 199).foreach(i => withClue("value" + i) { set12("value" + i) should be(true) })
+    (1000 to 1023).foreach(i => withClue("value" + i) { set12("value" + i) should be(true) })
     goju.close
     goju.terminate
     Await.ready(Supervisor.getActorSystem.whenTerminated, Duration(10, TimeUnit.MINUTES))
@@ -128,11 +166,14 @@ class FoldSpec extends FlatSpecLike
     (1 to 1024).foreach(i => goju.put(Utils.toBytes("key" + i), "value" + i))
     Thread.sleep(5000L)
 
-    val ret = goju.foldRange((k, v, acc) => {
-      val (count, list) = acc
-      (count + 1, v :: list)
-    }, (0, List.empty[Value]),
-      KeyRange(Key(Utils.toBytes("key1")), true, Option(Key(Utils.toBytes("key2"))), false, 9))
+    val ret = goju.foldRange(
+      (_, v, acc) => {
+        val (count, list) = acc
+        (count + 1, v :: list)
+      },
+      (0, List.empty[Value]),
+      KeyRange(Key(Utils.toBytes("key1")), true, Option(Key(Utils.toBytes("key2"))), false, 9)
+    )
     val set12 = ret.toSet
     log.debug("content set12: " + ret.mkString(", "))
     set12("value1") should be(true)
