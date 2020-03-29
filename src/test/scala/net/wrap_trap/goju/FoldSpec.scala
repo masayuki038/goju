@@ -22,8 +22,8 @@ class FoldSpec extends FlatSpecLike with ShouldMatchers with BeforeAndAfter with
   val log = LoggerFactory.getLogger(this.getClass)
 
   "foldRange" should "return all entries in each level" in {
-    TestHelper.deleteDirectory(new File("test-fold1"))
-    val goju = Goju.open("test-fold1")
+    TestHelper.deleteDirectory(new File("test-data/test-fold1"))
+    val goju = Goju.open("test-data/test-fold1")
     (1 to 1024).foreach(i => goju.put(Utils.toBytes("key" + i), "value" + i))
     Thread.sleep(5000L)
 
@@ -122,8 +122,8 @@ class FoldSpec extends FlatSpecLike with ShouldMatchers with BeforeAndAfter with
   }
 
   "foldRange" should "return all entries without tombstoned in each level" in {
-    TestHelper.deleteDirectory(new File("test-fold1"))
-    val goju = Goju.open("test-fold1")
+    TestHelper.deleteDirectory(new File("test-data/test-fold1"))
+    val goju = Goju.open("test-data/test-fold1")
 
     (1 to 1024).foreach(i => goju.put(Utils.toBytes("key" + i), "value" + i))
     Thread.sleep(5000L)
@@ -160,8 +160,8 @@ class FoldSpec extends FlatSpecLike with ShouldMatchers with BeforeAndAfter with
   }
 
   "foldRange" should "return limited entries" in {
-    TestHelper.deleteDirectory(new File("test-fold1"))
-    val goju = Goju.open("test-fold1")
+    TestHelper.deleteDirectory(new File("test-data/test-fold1"))
+    val goju = Goju.open("test-data/test-fold1")
 
     (1 to 1024).foreach(i => goju.put(Utils.toBytes("key" + i), "value" + i))
     Thread.sleep(5000L)

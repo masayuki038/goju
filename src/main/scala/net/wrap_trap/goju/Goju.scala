@@ -14,13 +14,13 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 
 /**
-  * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
+ * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
 
-  * Copyright (c) 2016 Masayuki Takahashi
+ * Copyright (c) 2016 Masayuki Takahashi
 
-  * This software is released under the MIT License.
-  * http://opensource.org/licenses/mit-license.php
-  */
+ * This software is released under the MIT License.
+ * http://opensource.org/licenses/mit-license.php
+ */
 object Goju extends PlainRpcClient {
   val log = LoggerFactory.getLogger(this.getClass)
 
@@ -56,7 +56,7 @@ class Goju(val dirPath: String) extends PlainRpcClient {
       }
       case false => {
         log.debug("init: data directory does not exist")
-        if(!dir.mkdir()) {
+        if (!dir.mkdirs()) {
           throw new IllegalStateException("Failed to create directory: " + dirPath)
         }
         val minLevel = Settings.getSettings().getInt("goju.level.top_level", 8)
@@ -73,25 +73,30 @@ class Goju(val dirPath: String) extends PlainRpcClient {
 
   private def openLevels(dir: File): (ActorRef, Int, Int) = {
     val topLevel0 = Settings.getSettings().getInt("goju.level.top_level", 8)
-    val (minLevel, maxLevel) = dir.list.foldLeft(topLevel0, topLevel0){case ((min, max), filename: String) => {
-      filename match {
-        case dataFilePattern(l) => {
-          val level = l.toInt
-          (Math.min(min, level), Math.max(max, level))
+    val (minLevel, maxLevel) = dir.list.foldLeft(topLevel0, topLevel0) {
+      case ((min, max), filename: String) => {
+        filename match {
+          case dataFilePattern(l) => {
+            val level = l.toInt
+            (Math.min(min, level), Math.max(max, level))
+          }
+          case _ => (min, max)
         }
-        case _ => (min, max)
       }
-    }}
+    }
     log.info("minLevel: %d, maxLevel: %d".format(minLevel, maxLevel))
     val nurseryFile = new File(this.dirPath + java.io.File.separator + Nursery.DATA_FILENAME)
-    if(nurseryFile.exists && !nurseryFile.delete()) {
-      throw new IllegalStateException("Failed to delete nursery file: " + nurseryFile.getAbsolutePath)
+    if (nurseryFile.exists && !nurseryFile.delete()) {
+      throw new IllegalStateException(
+        "Failed to delete nursery file: " + nurseryFile.getAbsolutePath)
     }
     val (ref, maxMerge) =
-      Range(maxLevel, minLevel).foldLeft(None: Option[ActorRef], 0){case ((nextLevel, mergeWork0), levelNo) => {
-      val level = Level.open(this.dirPath, levelNo, nextLevel)
-      (Option(level), mergeWork0 + Level.unmergedCount(level))
-    }}
+      Range(maxLevel, minLevel).foldLeft(None: Option[ActorRef], 0) {
+        case ((nextLevel, mergeWork0), levelNo) => {
+          val level = Level.open(this.dirPath, levelNo, nextLevel)
+          (Option(level), mergeWork0 + Level.unmergedCount(level))
+        }
+      }
     val workPerIter = (maxLevel - minLevel + 1) * Utils.btreeSize(minLevel)
     val topLevelRef = ref match {
       case Some(r) => r
@@ -105,8 +110,12 @@ class Goju(val dirPath: String) extends PlainRpcClient {
     (topLevelRef, minLevel, maxLevel)
   }
 
-  private def doMerge(topLevelRef: ActorRef, workPerIter: Int, maxMerge: Int, minLevel: Int): Unit = {
-    if(maxMerge <= 0) {
+  private def doMerge(
+      topLevelRef: ActorRef,
+      workPerIter: Int,
+      maxMerge: Int,
+      minLevel: Int): Unit = {
+    if (maxMerge <= 0) {
       Level.awaitIncrementalMerge(topLevelRef)
     } else {
       Level.beginIncrementalMerge(topLevelRef, Utils.btreeSize(minLevel))
@@ -180,23 +189,33 @@ class Goju(val dirPath: String) extends PlainRpcClient {
   }
 
   def put(key: Array[Byte], value: Value, keyExpireSecs: Int): Unit = {
-    this.nursery = Option(Nursery.add(key, value, keyExpireSecs, this.nursery.get, this.topLevelRef.get))
+    this.nursery = Option(
+      Nursery.add(key, value, keyExpireSecs, this.nursery.get, this.topLevelRef.get))
   }
 
   def transact(transactionSpecs: List[(TransactionOp, Any)]): Unit = {
     this.nursery.get.transact(transactionSpecs, this.topLevelRef.get)
   }
 
-  def fold(func: (Key, Value, (Int, List[Value])) => (Int, List[Value]), acc0: (Int, List[Value])): List[Value] = {
+  def fold(
+      func: (Key, Value, (Int, List[Value])) => (Int, List[Value]),
+      acc0: (Int, List[Value])): List[Value] = {
     foldRange(func, acc0, KeyRange(new Key(Array.empty[Byte]), true, None, true, Integer.MAX_VALUE))
   }
 
-  def foldRange(func: (Key, Value, (Int, List[Value])) => (Int, List[Value]),
-                acc0: (Int, List[Value]),
-                range: KeyRange): List[Value] = {
+  def foldRange(
+      func: (Key, Value, (Int, List[Value])) => (Int, List[Value]),
+      acc0: (Int, List[Value]),
+      range: KeyRange): List[Value] = {
     val system = Supervisor.getActorSystem
     val coordinatorRef = system.actorOf(
-      Props(classOf[FoldRangeCoordinator], this.topLevelRef.get, this.nursery.get, range, func, acc0),
+      Props(
+        classOf[FoldRangeCoordinator],
+        this.topLevelRef.get,
+        this.nursery.get,
+        range,
+        func,
+        acc0),
       "foldRangeCoordinator-" + System.currentTimeMillis)
     call(coordinatorRef, Start) match {
       case (count, results: List[Value]) => {

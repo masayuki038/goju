@@ -9,26 +9,23 @@ import org.scalatest._
 import org.slf4j.LoggerFactory
 
 /**
-  * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
+ * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
 
-  * Copyright (c) 2016 Masayuki Takahashi
+ * Copyright (c) 2016 Masayuki Takahashi
 
-  * This software is released under the MIT License.
-  * http://opensource.org/licenses/mit-license.php
-  */
-class GojuSpec extends TestKit(ActorSystem("goju"))
-  with FlatSpecLike
-  with ShouldMatchers
-  with StopSystemAfterAll
-  with BeforeAndAfter
-  with PlainRpcClient {
+ * This software is released under the MIT License.
+ * http://opensource.org/licenses/mit-license.php
+ */
+class GojuSpec
+    extends TestKit(ActorSystem("goju")) with FlatSpecLike with ShouldMatchers
+    with StopSystemAfterAll with BeforeAndAfter with PlainRpcClient {
   val log = LoggerFactory.getLogger(this.getClass)
 
   "Open, put and get" should "return the value" in {
     import org.scalatest.OptionValues._
 
-    TestHelper.deleteDirectory(new File("test-goju1"))
-    val goju = Goju.open("test-goju1")
+    TestHelper.deleteDirectory(new File("test-data/test-goju1"))
+    val goju = Goju.open("test-data/test-goju1")
     val key = Utils.toBytes("data")
     val value = Utils.to8Bytes(77)
     goju.put(key, value)
@@ -41,8 +38,8 @@ class GojuSpec extends TestKit(ActorSystem("goju"))
   "Put multi-bytes strings and get" should "return the value" in {
     import org.scalatest.OptionValues._
 
-    TestHelper.deleteDirectory(new File("test-goju2"))
-    val goju = Goju.open("test-goju2")
+    TestHelper.deleteDirectory(new File("test-data/test-goju2"))
+    val goju = Goju.open("test-data/test-goju2")
     val key = Utils.toBytes("テスト")
     val value = Utils.toBytes("太郎")
     goju.put(key, value)
@@ -53,21 +50,21 @@ class GojuSpec extends TestKit(ActorSystem("goju"))
   }
 
   "Put one that will be expired after 2 seconds and get" should "return None" in {
-    TestHelper.deleteDirectory(new File("test-goju3"))
-    val goju = Goju.open("test-goju3")
+    TestHelper.deleteDirectory(new File("test-data/test-goju3"))
+    val goju = Goju.open("test-data/test-goju3")
     val key = Utils.toBytes("expire-test")
     val value = Utils.toBytes("hoge")
     goju.put(key, value, 2)
     Thread.sleep(3000)
-    goju.get(key) should not be(defined)
+    goju.get(key) should not be (defined)
     goju.destroy()
   }
 
   "Open, put, delete, get" should "return None" in {
     import org.scalatest.OptionValues._
 
-    TestHelper.deleteDirectory(new File("test-goju4"))
-    val goju = Goju.open("test-goju4")
+    TestHelper.deleteDirectory(new File("test-data/test-goju4"))
+    val goju = Goju.open("test-data/test-goju4")
     val key1 = Utils.toBytes("foo")
     val value1 = Utils.to8Bytes(77)
     goju.put(key1, value1)
@@ -88,8 +85,8 @@ class GojuSpec extends TestKit(ActorSystem("goju"))
   }
 
   "Range scan" should "return values in the range" in {
-    TestHelper.deleteDirectory(new File("test-goju5"))
-    val goju = Goju.open("test-goju5")
+    TestHelper.deleteDirectory(new File("test-data/test-goju5"))
+    val goju = Goju.open("test-data/test-goju5")
     val key1 = Utils.toBytes("range-test1")
     val value1 = Utils.toBytes("foo")
     val key2 = Utils.toBytes("range-test2")
@@ -100,14 +97,17 @@ class GojuSpec extends TestKit(ActorSystem("goju"))
     goju.put(key1, value1)
     goju.put(key2, value2)
     goju.put(key3, value3)
-    val ret = goju.fold((k, v, acc) => {
-      log.debug("Range scan, k: %s".format(k))
-      val (count, list) = acc
-      k match {
-        case Key(k) if (k == key2 || k == key3) => (count + 1, v :: list)
-        case _ => (count, list)
-      }
-    }, (0, List.empty[Value]))
+    val ret = goju.fold(
+      (k, v, acc) => {
+        log.debug("Range scan, k: %s".format(k))
+        val (count, list) = acc
+        k match {
+          case Key(k) if (k == key2 || k == key3) => (count + 1, v :: list)
+          case _ => (count, list)
+        }
+      },
+      (0, List.empty[Value])
+    )
 
     ret.length should be(2)
     ret.contains(value1) should be(false)
@@ -119,8 +119,8 @@ class GojuSpec extends TestKit(ActorSystem("goju"))
   "To lookup 1024 entries" should "return all entries in levels" in {
     import org.scalatest.OptionValues._
 
-    TestHelper.deleteDirectory(new File("test-goju6"))
-    val goju = Goju.open("test-goju6")
+    TestHelper.deleteDirectory(new File("test-data/test-goju6"))
+    val goju = Goju.open("test-data/test-goju6")
     (1 to 1024).foreach(i => goju.put(Utils.toBytes("key" + i), Utils.toBytes("value" + i)))
     Thread.sleep(5000L)
     (1 to 1024).foreach(i => {
@@ -129,6 +129,5 @@ class GojuSpec extends TestKit(ActorSystem("goju"))
     })
     goju.destroy()
   }
-
 
 }

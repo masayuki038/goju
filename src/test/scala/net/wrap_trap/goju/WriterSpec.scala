@@ -1,30 +1,36 @@
 package net.wrap_trap.goju
 
-import akka.actor.{Actor, ActorSystem, Props}
+import akka.actor.Actor
+import akka.actor.ActorSystem
+import akka.actor.Props
 import akka.pattern.AskTimeoutException
-import akka.testkit.{TestActorRef, TestKit}
+import akka.testkit.TestActorRef
+import akka.testkit.TestKit
 
 import java.io.File
 
 import net.wrap_trap.goju.element.KeyValue
-import org.scalatest.{FlatSpecLike, ShouldMatchers}
+import org.scalatest.FlatSpecLike
+import org.scalatest.ShouldMatchers
 
 /**
-  * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
+ * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
 
-  * Copyright (c) 2016 Masayuki Takahashi
+ * Copyright (c) 2016 Masayuki Takahashi
 
-  * This software is released under the MIT License.
-  * http://opensource.org/licenses/mit-license.php
-  */
-class WriterSpec extends TestKit(ActorSystem("test"))
-  with FlatSpecLike
-  with ShouldMatchers
-  with StopSystemAfterAll {
+ * This software is released under the MIT License.
+ * http://opensource.org/licenses/mit-license.php
+ */
+class WriterSpec
+    extends TestKit(ActorSystem("test")) with FlatSpecLike with ShouldMatchers
+    with StopSystemAfterAll {
 
   trait Factory {
-    val fileName = new File("test").getName
-    val writer = system.actorOf(Props(classOf[Writer], fileName, None), "writer-%s-%d".format(fileName, System.currentTimeMillis))
+    val fileName = new File("test-data/test").getName
+
+    val writer = system.actorOf(
+      Props(classOf[Writer], fileName, None),
+      "writer-%s-%d".format(fileName, System.currentTimeMillis))
   }
 
   "Writer.add" should "add a KeyValue" in new Factory {
