@@ -23,3 +23,5 @@ libraryDependencies += "com.github.xuwei-k" %% "msgpack4z-native" % "0.3.0"
 libraryDependencies += "com.github.xuwei-k" %% "msgpack4z-core" % "0.3.3"
 libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.1.7"
 libraryDependencies += "io.john-ky" %% "hashids-scala" % "1.1.2-2974446"
+
+parallelExecution in Test := false
