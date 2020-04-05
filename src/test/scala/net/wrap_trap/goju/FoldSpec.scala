@@ -118,7 +118,6 @@ class FoldSpec extends FlatSpecLike with ShouldMatchers with BeforeAndAfter with
     (900 to 999).foreach(i => withClue("value" + i) { set9("value" + i) should be(true) })
     goju.close
     goju.terminate
-    Await.ready(Supervisor.getActorSystem.whenTerminated, Duration(10, TimeUnit.MINUTES))
   }
 
   "foldRange" should "return all entries without tombstoned in each level" in {
@@ -156,7 +155,6 @@ class FoldSpec extends FlatSpecLike with ShouldMatchers with BeforeAndAfter with
     (1000 to 1023).foreach(i => withClue("value" + i) { set12("value" + i) should be(true) })
     goju.close
     goju.terminate
-    Await.ready(Supervisor.getActorSystem.whenTerminated, Duration(10, TimeUnit.MINUTES))
   }
 
   "foldRange" should "return limited entries" in {
@@ -189,6 +187,5 @@ class FoldSpec extends FlatSpecLike with ShouldMatchers with BeforeAndAfter with
     set12.size should be(9)
     goju.close
     goju.terminate
-    Await.ready(Supervisor.getActorSystem.whenTerminated, Duration(10, TimeUnit.MINUTES))
   }
 }

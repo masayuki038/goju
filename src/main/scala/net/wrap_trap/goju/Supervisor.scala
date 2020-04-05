@@ -1,24 +1,27 @@
 package net.wrap_trap.goju
 
+import java.util.concurrent.TimeUnit
+
 import akka.actor._
 import akka.event.Logging
 import akka.pattern.ask
 import akka.util.Timeout
-
 import akka.util.Timeout
+
 import scala.concurrent.Await
 import scala.concurrent.duration._
 
 /**
-  * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
+ * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
 
-  * Copyright (c) 2016 Masayuki Takahashi
+ * Copyright (c) 2016 Masayuki Takahashi
 
-  * This software is released under the MIT License.
-  * http://opensource.org/licenses/mit-license.php
-  */
+ * This software is released under the MIT License.
+ * http://opensource.org/licenses/mit-license.php
+ */
 object Supervisor {
-  implicit val callTimeout = Timeout(Settings.getSettings().getInt("goju.supervisor.call_timeout", 300) seconds)
+  implicit val callTimeout = Timeout(
+    Settings.getSettings().getInt("goju.supervisor.call_timeout", 300) seconds)
 
   var maybeActorSystem: Option[ActorSystem] = None
   var maybeSupervisor: Option[ActorRef] = None
@@ -29,15 +32,15 @@ object Supervisor {
     maybeSupervisor = Option(actorSystem.actorOf(Props[Supervisor]))
   }
 
-  def getActorSystem(): ActorSystem = {
-    maybeActorSystem.get
-  }
-
   def createActor(props: Props, name: String): ActorRef = {
     val ret = maybeSupervisor.get ? (props, name)
     Await.result(ret, callTimeout.duration) match {
       case ref: ActorRef => ref
     }
+  }
+
+  def stop(ref: ActorRef): Unit = {
+    maybeActorSystem.get.stop(ref)
   }
 
   def stopChild(ref: ActorRef): Unit = {
@@ -46,6 +49,12 @@ object Supervisor {
       case false => throw new IllegalStateException("Failed to stopChild: %s".format(ref))
       case _ =>
     }
+  }
+
+  def terminate(): Unit = {
+    val actorSystem = maybeActorSystem.get
+    actorSystem.terminate
+    Await.ready(actorSystem.whenTerminated, Duration(3, TimeUnit.MINUTES))
   }
 
   def waitForAllChildrenStopped(): Unit = {
@@ -70,8 +79,7 @@ class Supervisor extends Actor {
     case (StopChild, ref: ActorRef) => {
       if (context.children.toSeq.exists(child => child == ref)) {
         context.stop(ref)
-        context.
-        sender ! true
+        context.sender ! true
       } else {
         sender ! false
       }

@@ -2,24 +2,27 @@ package net.wrap_trap.goju
 
 import java.io.File
 
-import akka.actor.{ActorSystem, ActorRef}
-import akka.testkit.{TestKit, TestActorRef}
+import akka.actor.ActorSystem
+import akka.actor.ActorRef
+import akka.testkit.TestKit
+import akka.testkit.TestActorRef
 import net.wrap_trap.goju.element.KeyValue
-import org.scalatest.{FlatSpecLike, BeforeAndAfter, Matchers}
+import org.scalatest.FlatSpecLike
+import org.scalatest.BeforeAndAfter
+import org.scalatest.Matchers
 import org.slf4j.LoggerFactory
 
 /**
-  * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
+ * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
 
-  * Copyright (c) 2016 Masayuki Takahashi
+ * Copyright (c) 2016 Masayuki Takahashi
 
-  * This software is released under the MIT License.
-  * http://opensource.org/licenses/mit-license.php
-  */
-class NurserySpec extends TestKit(ActorSystem("test"))
- with FlatSpecLike with Matchers with BeforeAndAfter {
+ * This software is released under the MIT License.
+ * http://opensource.org/licenses/mit-license.php
+ */
+class NurserySpec
+    extends TestKit(ActorSystem("test")) with FlatSpecLike with Matchers with BeforeAndAfter {
   val log = LoggerFactory.getLogger(this.getClass)
-
 
   "newNursery" should "return new Nursery" in {
     TestHelper.remakeDir(new File("test-nursery1"))
@@ -49,58 +52,70 @@ class NurserySpec extends TestKit(ActorSystem("test"))
     testCode(nursery, top)
   }
 
-  "Nursery.add" should "be added KeyValue" in newNursery("test-nursery3", { (nursery, top) =>
-    val rawKey1 = Utils.toBytes("foo")
-    Nursery.add(rawKey1, "bar", 600, nursery, top)
-    val key1 = Key(rawKey1)
-    nursery.tree.size should be(1)
-    nursery.tree.containsKey(key1) should be(true)
-    nursery.tree.get(key1).isInstanceOf[KeyValue] should be(true)
-    nursery.tree.get(key1).asInstanceOf[KeyValue].value should be("bar")
+  "Nursery.add" should "be added KeyValue" in newNursery(
+    "test-nursery3", { (nursery, top) =>
+      val rawKey1 = Utils.toBytes("foo")
+      Nursery.add(rawKey1, "bar", 600, nursery, top)
+      val key1 = Key(rawKey1)
+      nursery.tree.size should be(1)
+      nursery.tree.containsKey(key1) should be(true)
+      nursery.tree.get(key1).isInstanceOf[KeyValue] should be(true)
+      nursery.tree.get(key1).asInstanceOf[KeyValue].value should be("bar")
 
-    val rawKey2 = Utils.toBytes("hoge")
-    Nursery.add(rawKey2, "hogehoge", 600, nursery, top)
-    val key2 = Key(rawKey2)
-    nursery.tree.size should be(2)
-    nursery.tree.containsKey(key2) should be(true)
-    nursery.tree.get(key2).isInstanceOf[KeyValue] should be(true)
-    nursery.tree.get(key2).asInstanceOf[KeyValue].value should be("hogehoge")
-    nursery.destroy()
-  })
+      val rawKey2 = Utils.toBytes("hoge")
+      Nursery.add(rawKey2, "hogehoge", 600, nursery, top)
+      val key2 = Key(rawKey2)
+      nursery.tree.size should be(2)
+      nursery.tree.containsKey(key2) should be(true)
+      nursery.tree.get(key2).isInstanceOf[KeyValue] should be(true)
+      nursery.tree.get(key2).asInstanceOf[KeyValue].value should be("hogehoge")
+      nursery.destroy()
+    }
+  )
 
-  "Nursery.recover" should "be recoverd two elements" in twoInNursery("test-nursery4", { (nursery, top) =>
-    nursery.logger.close()
-    val newNursery = Nursery.recover(".", top, 1, 2)
+  "Nursery.recover" should "be recoverd two elements" in twoInNursery(
+    "test-nursery4", { (nursery, top) =>
+      Supervisor.init()
+      nursery.logger.close()
+      val newNursery = Nursery.recover(".", top, 1, 2)
 
-    val reader = RandomReader.open(newNursery.dirPath + java.io.File.separator + Nursery.DATA_FILENAME)
-    val kv1 = reader.lookup(Utils.toBytes("foo"))
-    kv1 should be(defined)
-    kv1.get.value should be("bar")
-    val kv2 =  reader.lookup(Utils.toBytes("hoge"))
-    kv2 should be(defined)
-    kv2.get.value should be("hogehoge")
-    reader.destroy()
-    newNursery.destroy()
-  })
+      val reader =
+        RandomReader.open(newNursery.dirPath + java.io.File.separator + Nursery.DATA_FILENAME)
+      val kv1 = reader.lookup(Utils.toBytes("foo"))
+      kv1 should be(defined)
+      kv1.get.value should be("bar")
+      val kv2 = reader.lookup(Utils.toBytes("hoge"))
+      kv2 should be(defined)
+      kv2.get.value should be("hogehoge")
+      reader.destroy()
+      newNursery.destroy()
+      Supervisor.terminate()
+    }
+  )
 
-  "Nursery.recover" should "be recoverd two elements with expire time" in twoInNursery("test-nursery5", { (nursery, top) =>
-    nursery.logger.close()
-    val newNursery = Nursery.recover(".", top, 1, 2)
-    val reader = RandomReader.open(newNursery.dirPath + java.io.File.separator + Nursery.DATA_FILENAME)
+  "Nursery.recover" should "be recoverd two elements with expire time" in twoInNursery(
+    "test-nursery5", { (nursery, top) =>
+      Supervisor.init()
+      nursery.logger.close()
+      val newNursery = Nursery.recover(".", top, 1, 2)
+      val reader =
+        RandomReader.open(newNursery.dirPath + java.io.File.separator + Nursery.DATA_FILENAME)
 
-    Thread.sleep(5000L)
-    reader.lookup(Utils.toBytes("foo")) should be(None)
-    val ret1 = reader.lookup(Utils.toBytes("hoge"))
-    ret1 should be(defined)
-    ret1.get.value should be("hogehoge")
+      Thread.sleep(5000L)
+      reader.lookup(Utils.toBytes("foo")) should be(None)
+      val ret1 = reader.lookup(Utils.toBytes("hoge"))
+      ret1 should be(defined)
+      ret1.get.value should be("hogehoge")
 
-    Thread.sleep(5000L)
-    reader.lookup(Utils.toBytes("foo")) should be(None)
-    reader.lookup(Utils.toBytes("hoge")) should be(None)
+      Thread.sleep(5000L)
+      reader.lookup(Utils.toBytes("foo")) should be(None)
+      reader.lookup(Utils.toBytes("hoge")) should be(None)
 
-    reader.destroy()
-    newNursery.destroy()
-  })
+      reader.destroy()
+      newNursery.destroy()
+      Supervisor.terminate()
+    }
+  )
 }
 
 class LevelSutbForRecover extends PlainRpc {

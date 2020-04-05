@@ -142,9 +142,7 @@ class Goju(val dirPath: String) extends PlainRpcClient {
   }
 
   def terminate(): Unit = {
-    val system = Supervisor.getActorSystem
-    system.terminate
-    Await.ready(system.whenTerminated, Duration(3, TimeUnit.MINUTES))
+    Supervisor.terminate()
   }
 
   def destroy(): Unit = {
@@ -207,8 +205,7 @@ class Goju(val dirPath: String) extends PlainRpcClient {
       func: (Key, Value, (Int, List[Value])) => (Int, List[Value]),
       acc0: (Int, List[Value]),
       range: KeyRange): List[Value] = {
-    val system = Supervisor.getActorSystem
-    val coordinatorRef = system.actorOf(
+    val coordinatorRef = Supervisor.createActor(
       Props(
         classOf[FoldRangeCoordinator],
         this.topLevelRef.get,
@@ -220,7 +217,7 @@ class Goju(val dirPath: String) extends PlainRpcClient {
     call(coordinatorRef, Start) match {
       case (count, results: List[Value]) => {
         log.debug("foldRange, replied %d values".format(count))
-        system.stop(coordinatorRef)
+        Supervisor.stop(coordinatorRef)
         results
       }
     }
