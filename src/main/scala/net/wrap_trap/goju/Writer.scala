@@ -4,34 +4,42 @@ import scala.annotation.tailrec
 import java.io._
 
 import scala.concurrent.duration._
-import akka.actor.{ActorContext, ActorRef, Props}
+import akka.actor.ActorContext
+import akka.actor.ActorRef
+import akka.actor.Props
 import akka.util.Timeout
-import net.wrap_trap.goju.element.{Element, KeyRef, KeyValue}
+import net.wrap_trap.goju.element.Element
+import net.wrap_trap.goju.element.KeyRef
+import net.wrap_trap.goju.element.KeyValue
 import net.wrap_trap.goju.Helper._
 import net.wrap_trap.goju.Constants._
 
-
 /**
-  * goju-to: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
+ * goju-to: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
 
-  * Copyright (c) 2016 Masayuki Takahashi
+ * Copyright (c) 2016 Masayuki Takahashi
 
-  * This software is released under the MIT License.
-  * http://opensource.org/licenses/mit-license.php
-  */
+ * This software is released under the MIT License.
+ * http://opensource.org/licenses/mit-license.php
+ */
 object Writer extends PlainRpcClient {
+
   def open(path: String): ActorRef = {
     val fileName = new File(path).getName
-    Supervisor.createActor(Props(classOf[Writer], path, None), "writer-%s-%d".format(fileName, System.currentTimeMillis))
+    Supervisor.createActor(
+      Props(classOf[Writer], path, None),
+      "writer-%s-%d".format(fileName, System.currentTimeMillis))
   }
 
   def open(path: String, context: ActorContext): ActorRef = {
     val fileName = new File(path).getName
-    context.actorOf(Props(classOf[Writer], path, None), "writer-%s-%d".format(fileName, System.currentTimeMillis))
+    context.actorOf(
+      Props(classOf[Writer], path, None),
+      "writer-%s-%d".format(fileName, System.currentTimeMillis))
   }
 
   def add(actorRef: ActorRef, element: Element) = {
-    if(!element.expired()) {
+    if (!element.expired()) {
       cast(actorRef, ('add, element))
     }
   }
@@ -44,11 +52,12 @@ object Writer extends PlainRpcClient {
   def close(actorRef: ActorRef) = {
     implicit val timeout = Timeout(30 seconds)
     call(actorRef, ('close))
+    Supervisor.stop(actorRef)
   }
 }
 
 class Writer(val name: String, var state: Option[State] = None) extends PlainRpc {
-  val NODE_SIZE = 8*1024
+  val NODE_SIZE = 8 * 1024
 
   override def preStart() = {
     super.preStart
@@ -87,7 +96,7 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
   def handleCast(msg: Any) = {
     msg match {
       case ('add, kv: KeyValue) => {
-        if(!kv.expired) {
+        if (!kv.expired) {
           val newState = appendNode(0, kv, this.state.get)
           this.state = Option(newState)
         }
@@ -99,10 +108,11 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
   def handleCall(msg: Any): Any = {
     msg match {
       case ('add, kv: KeyValue) => {
-        if(!kv.expired) {
+        if (!kv.expired) {
           val newState = appendNode(0, kv, this.state.get)
           this.state = Option(newState)
         }
+        true
       }
       case ('count) => {
         this.state match {
@@ -112,7 +122,7 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
       }
       case ('close) => {
         close
-        context.stop(self)
+        true
       }
       case msg => throw new IllegalStateException("An unexpected message received. msg: " + msg)
     }
@@ -156,10 +166,11 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
           )
         }
       }
-      case List(node) if node.level > 0 && node.members.size == 1 && node.members.head.isInstanceOf[KeyRef] => {
+      case List(node)
+          if node.level > 0 && node.members.size == 1 && node.members.head.isInstanceOf[KeyRef] => {
         archiveNodes(s.copy(nodes = List.empty[WriterNode]))
       }
-      case List(_, _*)  => {
+      case List(_, _*) => {
         val newState = flushNodeBuffer(s)
         archiveNodes(newState)
       }
@@ -174,7 +185,7 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
         val newState = s.copy(nodes = WriterNode(level) :: s.nodes)
         return appendNode(level, element, newState)
       }
-      case List(node, _*) if(level < node.level) => {
+      case List(node, _*) if (level < node.level) => {
         val newState = s.copy(nodes = WriterNode(level = node.level - 1) :: s.nodes)
         return appendNode(level, element, newState)
       }
@@ -184,7 +195,7 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
             // do nothing
           }
           case List(member, _*) => {
-            if(Utils.compareBytes(element.key(), member.key()) < 0) {
+            if (Utils.compareBytes(element.key(), member.key()) < 0) {
               Utils.dumpBinary(element.key.bytes, "element.key()")
               Utils.dumpBinary(member.key.bytes, "member.key()")
               throw new IllegalStateException(s"""element.key < member.key""");
@@ -194,10 +205,11 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
         val newSize = node.size + element.estimateNodeSizeIncrement
         s.bloom.add(element.key())
         val (tc1, vc1) = node.level match {
-          case 0 => element.expired() match {
-            case true => (s.tombstoneCount + 1, s.valueCount)
-            case _ => (s.tombstoneCount, s.valueCount + 1)
-          }
+          case 0 =>
+            element.expired() match {
+              case true => (s.tombstoneCount + 1, s.valueCount)
+              case _ => (s.tombstoneCount, s.valueCount + 1)
+            }
           case _ => (s.tombstoneCount, s.valueCount)
         }
         val currentNode = node.copy(members = element :: node.members, size = newSize)
@@ -207,7 +219,7 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
           tombstoneCount = tc1
         )
 
-        if(newSize >= newState.blockSize) {
+        if (newSize >= newState.blockSize) {
           flushNodeBuffer(newState)
         } else {
           newState
@@ -219,14 +231,14 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
   def flushNodeBuffer(s: State): State = {
     log.debug("flushNodeBuffer, file: %s".format(s.name))
     s.nodes match {
-      case  node::rest => {
+      case node :: rest => {
         val level = node.level
 
         val orderedMembers = node.members.reverse
         val blockData = Utils.encodeIndexNodes(orderedMembers, Compress(Constants.COMPRESS_PLAIN))
         val dumpBuffer = Settings.getSettings().getBoolean("goju.debug.dump_buffer", false)
-        if(dumpBuffer) {
-          Utils.dumpBinary(blockData,"flushNode#blockData" )
+        if (dumpBuffer) {
+          Utils.dumpBinary(blockData, "flushNode#blockData")
         }
         val data = Utils.to4Bytes(blockData.size + 2) ++ Utils.to2Bytes(level) ++ blockData
         s.indexFile.foreach(_.write(data))
@@ -252,14 +264,15 @@ class Writer(val name: String, var state: Option[State] = None) extends PlainRpc
 }
 
 case class WriterNode(level: Int, members: List[Element] = List.empty, size: Int = 0)
-case class State(indexFile: Option[DataOutputStream],
-                 indexFilePos: Int,
-                 lastNodePos: Long,
-                 lastNodeSize: Int,
-                 nodes: List[WriterNode],
-                 name: String,
-                 bloom: Bloom,
-                 blockSize: Int,
-                 opts: List[Any],
-                 valueCount: Int = 0,
-                 tombstoneCount: Int = 0)
+case class State(
+    indexFile: Option[DataOutputStream],
+    indexFilePos: Int,
+    lastNodePos: Long,
+    lastNodeSize: Int,
+    nodes: List[WriterNode],
+    name: String,
+    bloom: Bloom,
+    blockSize: Int,
+    opts: List[Any],
+    valueCount: Int = 0,
+    tombstoneCount: Int = 0)

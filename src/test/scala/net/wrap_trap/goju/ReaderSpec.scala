@@ -17,19 +17,19 @@ import org.scalatest._
  * This software is released under the MIT License.
  * http://opensource.org/licenses/mit-license.php
  */
-class ReaderSpec
-    extends TestKit(ActorSystem("test")) with FlatSpecLike with ShouldMatchers
-    with StopSystemAfterAll {
+class ReaderSpec extends TestKit(ActorSystem("test")) with FlatSpecLike with ShouldMatchers {
 
   private def write(path: String) = {
     val fileName = new File(path).getName
-    val writer = system.actorOf(
+    Supervisor.init()
+    val writer = Supervisor.createActor(
       Props(classOf[Writer], path, None),
       "writer-%s-%d".format(fileName, System.currentTimeMillis))
     Writer.add(writer, new KeyValue(Utils.toBytes("foo"), "bar"))
     Writer.add(writer, new KeyValue(Utils.toBytes("hoge"), "hogehoge"))
     Writer.close(writer)
     Thread.sleep(1000L)
+    Supervisor.terminate()
   }
 
   def writtenByRandom(testCode: (String) => Any) {
