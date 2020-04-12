@@ -2,24 +2,30 @@ package net.wrap_trap.goju
 
 import java.nio.ByteBuffer
 
-import net.wrap_trap.goju.element.{KeyRef, KeyValue}
+import net.wrap_trap.goju.element.KeyRef
+import net.wrap_trap.goju.element.KeyValue
 import org.joda.time.DateTime
-import org.scalatest.{FunSpec, BeforeAndAfter, Matchers, FlatSpec}
+import org.scalatest.FunSpec
+import org.scalatest.BeforeAndAfter
+import org.scalatest.Matchers
+import org.scalatest.FlatSpec
 
 /**
-  * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
+ * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
 
-  * Copyright (c) 2016 Masayuki Takahashi
+ * Copyright (c) 2016 Masayuki Takahashi
 
-  * This software is released under the MIT License.
-  * http://opensource.org/licenses/mit-license.php
-  */
+ * This software is released under the MIT License.
+ * http://opensource.org/licenses/mit-license.php
+ */
 class UtilsSpec extends FunSpec with Matchers with BeforeAndAfter {
 
   describe("to8Bytes") {
     it("should return the byte value converted from Long") {
-      Utils.to8Bytes(Long.MaxValue) should equal(ByteBuffer.allocate(8).putLong(Long.MaxValue).array())
-      Utils.to8Bytes(Long.MinValue) should equal(ByteBuffer.allocate(8).putLong(Long.MinValue).array())
+      Utils.to8Bytes(Long.MaxValue) should equal(
+        ByteBuffer.allocate(8).putLong(Long.MaxValue).array())
+      Utils.to8Bytes(Long.MinValue) should equal(
+        ByteBuffer.allocate(8).putLong(Long.MinValue).array())
     }
   }
 
@@ -32,8 +38,10 @@ class UtilsSpec extends FunSpec with Matchers with BeforeAndAfter {
 
   describe("to2Bytes") {
     it("should return the byte value converted from Short") {
-      Utils.to2Bytes(Short.MaxValue) should equal(ByteBuffer.allocate(2).putShort(Short.MaxValue).array())
-      Utils.to2Bytes(Short.MinValue) should equal(ByteBuffer.allocate(2).putShort(Short.MinValue).array())
+      Utils.to2Bytes(Short.MaxValue) should equal(
+        ByteBuffer.allocate(2).putShort(Short.MaxValue).array())
+      Utils.to2Bytes(Short.MinValue) should equal(
+        ByteBuffer.allocate(2).putShort(Short.MinValue).array())
     }
   }
 
@@ -46,7 +54,8 @@ class UtilsSpec extends FunSpec with Matchers with BeforeAndAfter {
 
     describe("when the value is bytes") {
       it("should return the estimate size for adding a node") {
-        new KeyValue(Utils.toBytes("test"), Utils.toBytes("foo")).estimateNodeSizeIncrement should equal(16)
+        new KeyValue(Utils.toBytes("test"), Utils.toBytes("foo")).estimateNodeSizeIncrement should equal(
+          16)
       }
     }
 
@@ -58,7 +67,8 @@ class UtilsSpec extends FunSpec with Matchers with BeforeAndAfter {
 
     describe("when the value is Tuple") {
       it("should return the esitmate size for adding a node") {
-        new KeyValue(Utils.toBytes("test"), ("foobar", 2)).estimateNodeSizeIncrement should equal(21)
+        new KeyValue(Utils.toBytes("test"), ("foobar", 2)).estimateNodeSizeIncrement should equal(
+          21)
       }
     }
   }
@@ -100,8 +110,8 @@ class UtilsSpec extends FunSpec with Matchers with BeforeAndAfter {
       val packed = Utils.encodeIndexNodes(target, compress)
       val unpacked = Utils.decodeIndexNodes(packed, compress)
 
-      unpacked(0).isInstanceOf[KeyValue] should be(true)
-      assertKeyValue(unpacked(0).asInstanceOf[KeyValue], kv, now)
+      unpacked.head.isInstanceOf[KeyValue] should be(true)
+      assertKeyValue(unpacked.head.asInstanceOf[KeyValue], kv, now)
 
       unpacked(1).isInstanceOf[KeyValue] should be(true)
       assertTombstoned(unpacked(1).asInstanceOf[KeyValue], tombstoned, now)
@@ -111,21 +121,21 @@ class UtilsSpec extends FunSpec with Matchers with BeforeAndAfter {
     }
   }
 
-  def assertKeyValue(target: KeyValue, expected: KeyValue, now: DateTime) = {
-    target.key should be(expected.key)
-    target.value should be(expected.value)
+  private def assertKeyValue(target: KeyValue, expected: KeyValue, now: DateTime): Unit = {
+    target.key() should be(expected.key())
+    target.value() should be(expected.value())
     target.timestamp().get.getMillis should be(now.getMillis / 1000L * 1000L)
   }
 
-  def assertTombstoned(target: KeyValue, expected: KeyValue, now: DateTime) = {
-    target.key should be(expected.key)
-    target.tombstoned should be(true)
+  private def assertTombstoned(target: KeyValue, expected: KeyValue, now: DateTime): Unit = {
+    target.key() should be(expected.key())
+    target.tombstoned() should be(true)
     target.timestamp().get.getMillis should be(now.getMillis / 1000L * 1000L)
   }
 
-  def assertPosLen(target: KeyRef, expected: KeyRef) = {
-    target.key should be(expected.key)
-    target.pos should be(expected.pos)
-    target.len should be(expected.len)
+  private def assertPosLen(target: KeyRef, expected: KeyRef): Unit = {
+    target.key() should be(expected.key())
+    target.pos() should be(expected.pos())
+    target.len() should be(expected.len())
   }
 }

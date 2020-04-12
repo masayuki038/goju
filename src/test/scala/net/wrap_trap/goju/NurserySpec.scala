@@ -2,8 +2,9 @@ package net.wrap_trap.goju
 
 import java.io.File
 
-import akka.actor.ActorSystem
+import akka.actor.Actor
 import akka.actor.ActorRef
+import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import akka.testkit.TestActorRef
 import net.wrap_trap.goju.element.KeyValue
@@ -22,7 +23,7 @@ import org.slf4j.LoggerFactory
  */
 class NurserySpec
     extends TestKit(ActorSystem("test")) with FlatSpecLike with Matchers with BeforeAndAfter {
-  val log = LoggerFactory.getLogger(this.getClass)
+  private val log = LoggerFactory.getLogger(this.getClass)
 
   "newNursery" should "return new Nursery" in {
     TestHelper.remakeDir(new File("test-nursery1"))
@@ -120,12 +121,10 @@ class NurserySpec
 
 class LevelSutbForRecover extends PlainRpc {
 
-  def receive = {
-    case (PlainRpcProtocol.call, (Inject, fileName: String)) => {
+  def receive: Actor.Receive = {
+    case (PlainRpcProtocol.call, (Inject, _: String)) =>
       sendReply(sender(), Ok)
-    }
-    case (PlainRpcProtocol.call, (BeginIncrementalMerge, stepSize: Int)) => {
+    case (PlainRpcProtocol.call, (BeginIncrementalMerge, _: Int)) =>
       sendReply(sender(), true)
-    }
   }
 }

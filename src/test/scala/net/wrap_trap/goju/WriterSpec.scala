@@ -1,12 +1,12 @@
 package net.wrap_trap.goju
 
 import akka.actor.Actor
+import akka.actor.ActorRef
 import akka.actor.ActorSystem
 import akka.actor.Props
 import akka.pattern.AskTimeoutException
 import akka.testkit.TestActorRef
 import akka.testkit.TestKit
-
 import java.io.File
 
 import net.wrap_trap.goju.element.KeyValue
@@ -26,9 +26,9 @@ class WriterSpec
     with StopSystemAfterAll {
 
   trait Factory {
-    val fileName = new File("test-data/test").getName
+    private val fileName = new File("test-data/test").getName
 
-    val writer = system.actorOf(
+    val writer: ActorRef = system.actorOf(
       Props(classOf[Writer], fileName, None),
       "writer-%s-%d".format(fileName, System.currentTimeMillis))
   }

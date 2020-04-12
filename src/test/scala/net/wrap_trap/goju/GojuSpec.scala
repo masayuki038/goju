@@ -19,7 +19,7 @@ import org.slf4j.LoggerFactory
 class GojuSpec
     extends TestKit(ActorSystem("goju")) with FlatSpecLike with ShouldMatchers
     with StopSystemAfterAll with BeforeAndAfter with PlainRpcClient {
-  val log = LoggerFactory.getLogger(this.getClass)
+  private val log = LoggerFactory.getLogger(this.getClass)
 
   "Open, put and get" should "return the value" in {
     import org.scalatest.OptionValues._
@@ -56,7 +56,7 @@ class GojuSpec
     val value = Utils.toBytes("hoge")
     goju.put(key, value, 2)
     Thread.sleep(3000)
-    goju.get(key) should not be (defined)
+    goju.get(key) should not be defined
     goju.destroy()
   }
 
@@ -102,7 +102,7 @@ class GojuSpec
         log.debug("Range scan, k: %s".format(k))
         val (count, list) = acc
         k match {
-          case Key(k) if (k == key2 || k == key3) => (count + 1, v :: list)
+          case Key(k) if k.sameElements(key2) || k.sameElements(key3) => (count + 1, v :: list)
           case _ => (count, list)
         }
       },

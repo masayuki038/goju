@@ -1,17 +1,20 @@
 package net.wrap_trap.goju
 
-import java.io.{InputStream, IOException, EOFException, DataInputStream}
+import java.io.InputStream
+import java.io.IOException
+import java.io.EOFException
+import java.io.DataInputStream
 
 import com.google.common.primitives.UnsignedInteger
 
 /**
-  * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
+ * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
 
-  * Copyright (c) 2016 Masayuki Takahashi
+ * Copyright (c) 2016 Masayuki Takahashi
 
-  * This software is released under the MIT License.
-  * http://opensource.org/licenses/mit-license.php
-  */
+ * This software is released under the MIT License.
+ * http://opensource.org/licenses/mit-license.php
+ */
 class ElementInputStream(is: InputStream) extends AutoCloseable {
   val internal = new DataInputStream(is)
   var p = 0L
@@ -59,30 +62,30 @@ class ElementInputStream(is: InputStream) extends AutoCloseable {
     this.internal.read(bytes, off, len)
   }
 
-  def readEndTag() = {
-    val ch1 = read
+  def readEndTag(): Unit = {
+    val ch1 = read()
     if (ch1 < 0)
       throw new EOFException
     if (ch1 != 0xFF)
       throw new IllegalStateException("endTag != 0xFF. endTag: " + ch1)
   }
 
-  def pointer() : Long = p
+  def pointer(): Long = p
 
-  def skip(n: Long) = {
+  def skip(n: Long): Long = {
     this.internal.skip(n)
   }
 
-  def reset() = {
+  def reset(): Unit = {
     this.internal.reset()
   }
 
-  override def close() = {
+  override def close(): Unit = {
     try {
-      this.internal.close
+      this.internal.close()
       p = 0L
     } catch {
-      case ignore: IOException => {}
+      case _: IOException =>
     }
   }
 }

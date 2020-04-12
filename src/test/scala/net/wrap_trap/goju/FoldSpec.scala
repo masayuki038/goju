@@ -19,7 +19,7 @@ import scala.concurrent.duration.Duration
  * http://opensource.org/licenses/mit-license.php
  */
 class FoldSpec extends FlatSpecLike with ShouldMatchers with BeforeAndAfter with PlainRpcClient {
-  val log = LoggerFactory.getLogger(this.getClass)
+  private val log = LoggerFactory.getLogger(this.getClass)
 
   "foldRange" should "return all entries in each level" in {
     TestHelper.deleteDirectory(new File("test-data/test-fold1"))
@@ -35,9 +35,9 @@ class FoldSpec extends FlatSpecLike with ShouldMatchers with BeforeAndAfter with
       (0, List.empty[Value]),
       KeyRange(
         Key(Utils.toBytes("key1")),
-        true,
+        fromInclude = true,
         Option(Key(Utils.toBytes("key3"))),
-        false,
+        toInclude = false,
         Integer.MAX_VALUE)
     )
     val set12 = ret.toSet
@@ -55,9 +55,9 @@ class FoldSpec extends FlatSpecLike with ShouldMatchers with BeforeAndAfter with
       (0, List.empty[Value]),
       KeyRange(
         Key(Utils.toBytes("key3")),
-        true,
+        fromInclude = true,
         Option(Key(Utils.toBytes("key5"))),
-        false,
+        toInclude = false,
         Integer.MAX_VALUE)
     )
     val set34 = ret.toSet
@@ -74,9 +74,9 @@ class FoldSpec extends FlatSpecLike with ShouldMatchers with BeforeAndAfter with
       (0, List.empty[Value]),
       KeyRange(
         Key(Utils.toBytes("key5")),
-        true,
+        fromInclude = true,
         Option(Key(Utils.toBytes("key7"))),
-        false,
+        toInclude = false,
         Integer.MAX_VALUE)
     )
     val set56 = ret.toSet
@@ -93,9 +93,9 @@ class FoldSpec extends FlatSpecLike with ShouldMatchers with BeforeAndAfter with
       (0, List.empty[Value]),
       KeyRange(
         Key(Utils.toBytes("key7")),
-        true,
+        fromInclude = true,
         Option(Key(Utils.toBytes("key9"))),
-        false,
+        toInclude = false,
         Integer.MAX_VALUE)
     )
     val set78 = ret.toSet
@@ -110,14 +110,20 @@ class FoldSpec extends FlatSpecLike with ShouldMatchers with BeforeAndAfter with
         (count + 1, v :: list)
       },
       (0, List.empty[Value]),
-      KeyRange(Key(Utils.toBytes("key9")), true, None, false, Integer.MAX_VALUE))
+      KeyRange(
+        Key(Utils.toBytes("key9")),
+        fromInclude = true,
+        None,
+        toInclude = false,
+        Integer.MAX_VALUE)
+    )
     val set9 = ret.toSet
     log.debug("content set9:" + ret.mkString(", "))
     set9.contains("value9") should be(true)
     (90 to 99).foreach(i => withClue("value" + i) { set9("value" + i) should be(true) })
     (900 to 999).foreach(i => withClue("value" + i) { set9("value" + i) should be(true) })
-    goju.close
-    goju.terminate
+    goju.close()
+    goju.terminate()
   }
 
   "foldRange" should "return all entries without tombstoned in each level" in {
@@ -138,9 +144,9 @@ class FoldSpec extends FlatSpecLike with ShouldMatchers with BeforeAndAfter with
       (0, List.empty[Value]),
       KeyRange(
         Key(Utils.toBytes("key1")),
-        true,
+        fromInclude = true,
         Option(Key(Utils.toBytes("key2"))),
-        false,
+        toInclude = false,
         Integer.MAX_VALUE)
     )
     val set12 = ret.toSet
@@ -153,8 +159,8 @@ class FoldSpec extends FlatSpecLike with ShouldMatchers with BeforeAndAfter with
     (100 to 149).foreach(i => withClue("value" + i) { set12("value" + i) should be(true) })
     (151 to 199).foreach(i => withClue("value" + i) { set12("value" + i) should be(true) })
     (1000 to 1023).foreach(i => withClue("value" + i) { set12("value" + i) should be(true) })
-    goju.close
-    goju.terminate
+    goju.close()
+    goju.terminate()
   }
 
   "foldRange" should "return limited entries" in {
@@ -170,7 +176,12 @@ class FoldSpec extends FlatSpecLike with ShouldMatchers with BeforeAndAfter with
         (count + 1, v :: list)
       },
       (0, List.empty[Value]),
-      KeyRange(Key(Utils.toBytes("key1")), true, Option(Key(Utils.toBytes("key2"))), false, 9)
+      KeyRange(
+        Key(Utils.toBytes("key1")),
+        fromInclude = true,
+        Option(Key(Utils.toBytes("key2"))),
+        toInclude = false,
+        9)
     )
     val set12 = ret.toSet
     log.debug("content set12: " + ret.mkString(", "))
@@ -185,7 +196,7 @@ class FoldSpec extends FlatSpecLike with ShouldMatchers with BeforeAndAfter with
     set12("value1005") should be(true)
     set12("value1006") should be(false)
     set12.size should be(9)
-    goju.close
-    goju.terminate
+    goju.close()
+    goju.terminate()
   }
 }

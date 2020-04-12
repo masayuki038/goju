@@ -8,23 +8,23 @@ import scala.math.log
 import scala.math.pow
 
 /**
-  * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
+ * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
 
-  * Copyright (c) 2016 Masayuki Takahashi
+ * Copyright (c) 2016 Masayuki Takahashi
 
-  * This software is released under the MIT License.
-  * http://opensource.org/licenses/mit-license.php
-  */
-class Bloom(var e: Double, var n: Int, var mb: Int, var a: List[BitSet]) {
+ * This software is released under the MIT License.
+ * http://opensource.org/licenses/mit-license.php
+ */
+class Bloom(var e: Double, var n: Int, var mb: Int, var a: List[util.BitSet]) {
 
   def this(size: Int) {
-    this(0.001, size, 0, List.empty[BitSet])
-    init
+    this(0.001, size, 0, List.empty[util.BitSet])
+    init()
   }
 
   def this(e: Double, n: Int) {
-    this(e, n, 0, List.empty[BitSet])
-    init
+    this(e, n, 0, List.empty[util.BitSet])
+    init()
   }
 
   def init() {
@@ -41,7 +41,7 @@ class Bloom(var e: Double, var n: Int, var mb: Int, var a: List[BitSet]) {
     }
   }
 
-  def prepare(mode: BloomMode, n1: Int, e1: Double) = {
+  private def prepare(mode: BloomMode, n1: Int, e1: Double): Unit = {
     this.e = e1
     this.n = n1
 
@@ -60,10 +60,10 @@ class Bloom(var e: Double, var n: Int, var mb: Int, var a: List[BitSet]) {
     }
 
     val m = 1 << this.mb
-    this.n = (Math.floor(Math.log(1 - p) / Math.log(1 - 1 / m))).intValue()
+    this.n = Math.floor(Math.log(1 - p) / Math.log(1 - 1 / m)).intValue()
 
-    for (i <- 1 to k) {
-      this.a = new BitSet :: this.a
+    for (_ <- 1 to k) {
+      this.a = new util.BitSet :: this.a
     }
     //logger.info(String.format("mb: %d, n: %d, k: %d", this.mb, this.n, k));
   }
@@ -82,10 +82,10 @@ class Bloom(var e: Double, var n: Int, var mb: Int, var a: List[BitSet]) {
   }
 
   def makeIndexes(mask: Int, hashes: Int): (Int, Int) = {
-    (((hashes >> 16) & mask), (hashes & mask))
+    ((hashes >> 16) & mask, hashes & mask)
   }
 
-  def hashAdd(hashes: Int) = {
+  private def hashAdd(hashes: Int): Unit = {
     val mask = (1 << this.mb) - 1
     val (e1, e2) = makeIndexes(mask, hashes)
     setBits(mask, e1, e2)

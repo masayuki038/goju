@@ -2,25 +2,26 @@ package net.wrap_trap.goju
 
 import java.io.File
 
-import akka.event.{LogSource, Logging}
+import akka.event.LogSource
+import akka.event.Logging
 import org.slf4j.LoggerFactory
 
 /**
-  * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
+ * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
 
-  * Copyright (c) 2016 Masayuki Takahashi
+ * Copyright (c) 2016 Masayuki Takahashi
 
-  * This software is released under the MIT License.
-  * http://opensource.org/licenses/mit-license.php
-  */
+ * This software is released under the MIT License.
+ * http://opensource.org/licenses/mit-license.php
+ */
 object TestHelper {
-  val log = LoggerFactory.getLogger(this.getClass)
+  private val log = LoggerFactory.getLogger(this.getClass)
 
   def deleteDirectory(file: File): Unit = {
-    if(file.isDirectory) {
-      Option(file.listFiles).map(_.toList).getOrElse(Nil).foreach(deleteDirectory(_))
+    if (file.isDirectory) {
+      Option(file.listFiles).map(_.toList).getOrElse(Nil).foreach(deleteDirectory)
     }
-    if(file.exists && !file.delete) {
+    if (file.exists && !file.delete) {
       val dirName = file.getName
       log.error("failed to delete %s".format(dirName))
       throw new IllegalStateException("Failed to delete: " + dirName)
@@ -28,7 +29,7 @@ object TestHelper {
   }
 
   def remakeDir(file: File): Unit = {
-    if(!file.exists) {
+    if (!file.exists) {
       deleteDirectory(file)
       file.mkdir()
     }

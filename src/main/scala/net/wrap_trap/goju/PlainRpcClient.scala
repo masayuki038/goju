@@ -8,15 +8,16 @@ import net.wrap_trap.goju.PlainRpcProtocol._
 import scala.concurrent.Await
 
 /**
-  * goju-to: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
+ * goju-to: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
 
-  * Copyright (c) 2016 Masayuki Takahashi
+ * Copyright (c) 2016 Masayuki Takahashi
 
-  * This software is released under the MIT License.
-  * http://opensource.org/licenses/mit-license.php
-  */
+ * This software is released under the MIT License.
+ * http://opensource.org/licenses/mit-license.php
+ */
 trait PlainRpcClient {
-  def cast(pid: ActorRef, msg: Any) = {
+
+  def cast(pid: ActorRef, msg: Any): Unit = {
     pid ! CAST(msg)
   }
 

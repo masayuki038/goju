@@ -4,33 +4,33 @@ import java.io.ByteArrayInputStream
 
 import net.wrap_trap.goju.Helper._
 import net.wrap_trap.goju.element.Element
+import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 /**
-  * goju-to: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
+ * goju-to: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
 
-  * Copyright (c) 2016 Masayuki Takahashi
+ * Copyright (c) 2016 Masayuki Takahashi
 
-  * This software is released under the MIT License.
-  * http://opensource.org/licenses/mit-license.php
-  */
+ * This software is released under the MIT License.
+ * http://opensource.org/licenses/mit-license.php
+ */
 trait Reader {
-  val log = LoggerFactory.getLogger(this.getClass)
+  val log: Logger = LoggerFactory.getLogger(this.getClass)
 
   def skip(n: Long): Unit
 
-  def destroy() = {
-    close
-    delete
+  def destroy(): Unit = {
+    close()
+    delete()
   }
 
   def close(): Unit
   def delete(): Unit
 
-
   protected def readHeader(bytes: Array[Byte]): (Long, Int) = {
     using(new ElementInputStream(new ByteArrayInputStream(bytes))) { eis =>
-      (eis.readInt.toLong, eis.readShort.toInt)
+      (eis.readInt().toLong, eis.readShort().toInt)
     }
   }
 }

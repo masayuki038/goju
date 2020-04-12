@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory
 
 import scala.concurrent.Await
 import scala.concurrent.duration._
+import scala.language.postfixOps
 
 /**
  * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
@@ -22,10 +23,8 @@ import scala.concurrent.duration._
  * http://opensource.org/licenses/mit-license.php
  */
 object Goju extends PlainRpcClient {
-  val log = LoggerFactory.getLogger(this.getClass)
-
-  val callTimeout = Settings.getSettings().getInt("goju.call_timeout", 300)
-  implicit val timeout = Timeout(callTimeout seconds)
+  private val callTimeout = Settings.getSettings.getInt("goju.call_timeout", 300)
+  implicit val timeout: Timeout = Timeout(callTimeout seconds)
 
   def open(dirPath: String): Goju = {
     val goju = new Goju(dirPath)
@@ -35,35 +34,32 @@ object Goju extends PlainRpcClient {
 }
 
 class Goju(val dirPath: String) extends PlainRpcClient {
-  val log = LoggerFactory.getLogger(this.getClass)
+  private val log = LoggerFactory.getLogger(this.getClass)
 
-  val dataFilePattern = ("^[^\\d]+-(\\d+).data$").r
+  private val dataFilePattern = "^[^\\d]+-(\\d+).data$".r
   var nursery: Option[Nursery] = None
   var topLevelRef: Option[ActorRef] = None
   var maxLevel: Option[Int] = None
 
   def init(): Unit = {
     log.debug("init")
-    Supervisor.init
-    Utils.ensureExpiry
+    Supervisor.init()
+    Utils.ensureExpiry()
     val dir = new File(this.dirPath)
-    val (topRef, newNursery, maxLevel) = dir.isDirectory match {
-      case true => {
-        log.debug("init: data directory already exists")
-        val (topRef, minLevel, maxLevel) = openLevels(dir)
-        val newNursery = Nursery.recover(this.dirPath, topRef, minLevel, maxLevel)
-        (topRef, newNursery, maxLevel)
+    val (topRef, newNursery, maxLevel) = if (dir.isDirectory) {
+      log.debug("init: data directory already exists")
+      val (topRef, minLevel, maxLevel) = openLevels(dir)
+      val newNursery = Nursery.recover(this.dirPath, topRef, minLevel, maxLevel)
+      (topRef, newNursery, maxLevel)
+    } else {
+      log.debug("init: data directory does not exist")
+      if (!dir.mkdirs()) {
+        throw new IllegalStateException("Failed to create directory: " + dirPath)
       }
-      case false => {
-        log.debug("init: data directory does not exist")
-        if (!dir.mkdirs()) {
-          throw new IllegalStateException("Failed to create directory: " + dirPath)
-        }
-        val minLevel = Settings.getSettings().getInt("goju.level.top_level", 8)
-        val topLevelRef = Level.open(this.dirPath, minLevel, None)
-        val newNursery = Nursery.newNursery(this.dirPath, minLevel, minLevel)
-        (topLevelRef, newNursery, minLevel)
-      }
+      val minLevel = Settings.getSettings.getInt("goju.level.top_level", 8)
+      val topLevelRef = Level.open(this.dirPath, minLevel, None)
+      val newNursery = Nursery.newNursery(this.dirPath, minLevel, minLevel)
+      (topLevelRef, newNursery, minLevel)
     }
     this.nursery = Option(newNursery)
     this.topLevelRef = Option(topRef)
@@ -72,17 +68,15 @@ class Goju(val dirPath: String) extends PlainRpcClient {
   }
 
   private def openLevels(dir: File): (ActorRef, Int, Int) = {
-    val topLevel0 = Settings.getSettings().getInt("goju.level.top_level", 8)
+    val topLevel0 = Settings.getSettings.getInt("goju.level.top_level", 8)
     val (minLevel, maxLevel) = dir.list.foldLeft(topLevel0, topLevel0) {
-      case ((min, max), filename: String) => {
+      case ((min, max), filename: String) =>
         filename match {
-          case dataFilePattern(l) => {
+          case dataFilePattern(l) =>
             val level = l.toInt
             (Math.min(min, level), Math.max(max, level))
-          }
           case _ => (min, max)
         }
-      }
     }
     log.info("minLevel: %d, maxLevel: %d".format(minLevel, maxLevel))
     val nurseryFile = new File(this.dirPath + java.io.File.separator + Nursery.DATA_FILENAME)
@@ -92,24 +86,23 @@ class Goju(val dirPath: String) extends PlainRpcClient {
     }
     val (ref, maxMerge) =
       Range(maxLevel, minLevel).foldLeft(None: Option[ActorRef], 0) {
-        case ((nextLevel, mergeWork0), levelNo) => {
+        case ((nextLevel, mergeWork0), levelNo) =>
           val level = Level.open(this.dirPath, levelNo, nextLevel)
           (Option(level), mergeWork0 + Level.unmergedCount(level))
-        }
       }
     val workPerIter = (maxLevel - minLevel + 1) * Utils.btreeSize(minLevel)
     val topLevelRef = ref match {
       case Some(r) => r
-      case _ => {
+      case _ =>
         log.error("Failed to get topLevelRef. data files are: ")
         dir.listFiles.foreach(f => log.error(f.getAbsolutePath))
         throw new IllegalStateException("Failed to get topLevelRef")
-      }
     }
     doMerge(topLevelRef, workPerIter, maxMerge, minLevel)
     (topLevelRef, minLevel, maxLevel)
   }
 
+  @scala.annotation.tailrec
   private def doMerge(
       topLevelRef: ActorRef,
       workPerIter: Int,
@@ -130,15 +123,14 @@ class Goju(val dirPath: String) extends PlainRpcClient {
       Nursery.finish(this.nursery.get, this.topLevelRef.get)
       Level.close(this.topLevelRef.get)
     } catch {
-      case ignore: Exception => {
+      case ignore: Exception =>
         log.error("Failed to Goju#close", ignore)
-      }
     }
   }
 
   def stopLevel(): Unit = {
     log.debug("stopLevel")
-    Supervisor.stopChild((this.topLevelRef.get))
+    Supervisor.stopChild(this.topLevelRef.get)
   }
 
   def terminate(): Unit = {
@@ -152,9 +144,8 @@ class Goju(val dirPath: String) extends PlainRpcClient {
       Level.destroy(this.topLevelRef.get)
       this.maxLevel = Option(topLevelNumber)
     } catch {
-      case ignore: Exception => {
+      case ignore: Exception =>
         log.warn("Failed to Goju#destroy", ignore)
-      }
     }
   }
 
@@ -162,15 +153,13 @@ class Goju(val dirPath: String) extends PlainRpcClient {
     log.debug("get key: %s".format(key))
     this.nursery.get.lookup(key) match {
       case Some(e) if e.tombstoned || e.expired => None
-      case Some(e) => Option(e.value)
-      case None => {
+      case Some(e) => Option(e.value())
+      case None =>
         Level.lookup(this.topLevelRef.get, key) match {
-          case Some(kv: KeyValue) => {
-            Option(kv.value)
-          }
+          case Some(kv: KeyValue) =>
+            Option(kv.value())
           case None => None
         }
-      }
     }
   }
 
@@ -198,7 +187,15 @@ class Goju(val dirPath: String) extends PlainRpcClient {
   def fold(
       func: (Key, Value, (Int, List[Value])) => (Int, List[Value]),
       acc0: (Int, List[Value])): List[Value] = {
-    foldRange(func, acc0, KeyRange(new Key(Array.empty[Byte]), true, None, true, Integer.MAX_VALUE))
+    foldRange(
+      func,
+      acc0,
+      KeyRange(
+        Key(Array.empty[Byte]),
+        fromInclude = true,
+        None,
+        toInclude = true,
+        Integer.MAX_VALUE))
   }
 
   def foldRange(
@@ -215,11 +212,10 @@ class Goju(val dirPath: String) extends PlainRpcClient {
         acc0),
       "foldRangeCoordinator-" + System.currentTimeMillis)
     call(coordinatorRef, Start) match {
-      case (count, results: List[Value]) => {
+      case (count: Int, results: List[Value]) =>
         log.debug("foldRange, replied %d values".format(count))
         Supervisor.stop(coordinatorRef)
         results
-      }
     }
   }
 }

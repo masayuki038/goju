@@ -10,6 +10,7 @@ import akka.util.Timeout
 
 import scala.concurrent.Await
 import scala.concurrent.duration._
+import scala.language.postfixOps
 
 /**
  * goju: HanoiDB(LSM-trees (Log-Structured Merge Trees) Indexed Storage) clone
@@ -20,8 +21,8 @@ import scala.concurrent.duration._
  * http://opensource.org/licenses/mit-license.php
  */
 object Supervisor {
-  implicit val callTimeout = Timeout(
-    Settings.getSettings().getInt("goju.supervisor.call_timeout", 300) seconds)
+  private implicit val callTimeout: Timeout = Timeout(
+    Settings.getSettings.getInt("goju.supervisor.call_timeout", 300) seconds)
 
   var maybeActorSystem: Option[ActorSystem] = None
   var maybeSupervisor: Option[ActorRef] = None
@@ -70,26 +71,23 @@ object Supervisor {
 }
 
 class Supervisor extends Actor {
-  val log = Logging(context.system, this)
+  private val log = Logging(context.system, this)
 
-  def receive = {
-    case (props: Props, name: String) => {
+  def receive: Actor.Receive = {
+    case (props: Props, name: String) =>
       sender ! this.context.actorOf(props, name)
-    }
-    case (StopChild, ref: ActorRef) => {
-      if (context.children.toSeq.exists(child => child == ref)) {
+    case (StopChild, ref: ActorRef) =>
+      if (context.children.toSeq.contains(ref)) {
         context.stop(ref)
         context.sender ! true
       } else {
         sender ! false
       }
-    }
-    case WaitForAllChildrenStopped => {
+    case WaitForAllChildrenStopped =>
       log.info("Supvervisor: Wait for all children stopped")
       context.children.foreach { c =>
         log.info("\tchild: %s".format(c))
       }
-      sender ! (context.children.size == 0)
-    }
+      sender ! context.children.isEmpty
   }
 }
